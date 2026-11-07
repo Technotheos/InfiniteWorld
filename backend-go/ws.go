@@ -1,5 +1,5 @@
 package main
- 
+
 import (
 	"encoding/json"
 	"errors"
@@ -10,10 +10,10 @@ import (
 	"strings"
 	"sync"
 	"time"
- 
+
 	"github.com/gorilla/websocket"
 )
- 
+
 const (
 	writeWait         = 10 * time.Second
 	pongWait          = 60 * time.Second
@@ -27,23 +27,23 @@ const (
 	msgRatePerSec     = 5.0
 	msgBurst          = 10.0
 )
- 
+
 var (
 	roomIDRe  = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 	wsLimiter = newRateLimiter(60, time.Minute) // connection attempts per IP
- 
+
 	errTooManyConns = errors.New("too many connections for this user")
 	errTooManyRooms = errors.New("server room limit reached")
 	errRoomFull     = errors.New("room is full")
 )
- 
+
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	Subprotocols:    []string{"bearer"}, // browsers send the JWT as a 2nd subprotocol
 	CheckOrigin:     checkOrigin,
 }
- 
+
 // checkOrigin blocks cross-site WebSocket hijacking. Browsers always send
 // Origin; non-browser clients (CLI, mobile) don't, and still must present a JWT.
 func checkOrigin(r *http.Request) bool {
@@ -53,24 +53,24 @@ func checkOrigin(r *http.Request) bool {
 	}
 	return allowedOrigins[origin]
 }
- 
+
 // canJoinRoom is the hook for room-level authorization (membership, invites,
 // ownership...). Right now any authenticated user may join any valid room.
 func canJoinRoom(username, roomID string) bool {
 	return true
 }
- 
+
 type Message struct {
 	RoomID  string `json:"room_id"`
 	Sender  string `json:"sender"`
 	Action  string `json:"action"`
 	Content string `json:"content"`
 }
- 
+
 // ---------------------------------------------------------------------------
 // Client
 // ---------------------------------------------------------------------------
- 
+
 type Client struct {
 	conn     *websocket.Conn
 	room     *Room
@@ -80,7 +80,7 @@ type Client struct {
 	once     sync.Once
 	expiry   *time.Timer
 }
- 
+
 // close is idempotent and safe from any goroutine. The send channel is never
 // closed (avoids send-on-closed-channel panics); writePump exits via done.
 func (c *Client) close() {
@@ -89,16 +89,16 @@ func (c *Client) close() {
 		c.conn.Close()
 	})
 }
- 
+
 type bucket struct {
 	tokens, max, rate float64
 	last              time.Time
 }
- 
+
 func newBucket(rate, max float64) *bucket {
 	return &bucket{tokens: max, max: max, rate: rate, last: time.Now()}
 }
- 
+
 func (b *bucket) allow() bool {
 	now := time.Now()
 	b.tokens = math.Min(b.max, b.tokens+now.Sub(b.last).Seconds()*b.rate)
@@ -109,7 +109,7 @@ func (b *bucket) allow() bool {
 	b.tokens--
 	return true
 }
- 
+
 func (c *Client) readPump(m *Manager) {
 	defer func() {
 		if c.expiry != nil {
@@ -118,21 +118,21 @@ func (c *Client) readPump(m *Manager) {
 		m.leave(c)
 		c.close()
 	}()
- 
+
 	c.conn.SetReadLimit(maxMessageSize)
 	c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	c.conn.SetPongHandler(func(string) error {
 		return c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	})
- 
+
 	limiter := newBucket(msgRatePerSec, msgBurst)
- 
+
 	for {
 		_, raw, err := c.conn.ReadMessage()
 		if err != nil {
 			return
 		}
- 
+
 		if !limiter.allow() {
 			c.conn.WriteControl(
 				websocket.CloseMessage,
@@ -141,7 +141,7 @@ func (c *Client) readPump(m *Manager) {
 			)
 			return
 		}
- 
+
 		var msg Message
 		if err := json.Unmarshal(raw, &msg); err != nil {
 			continue
@@ -149,11 +149,11 @@ func (c *Client) readPump(m *Manager) {
 		if len(msg.Action) > maxActionLen {
 			continue
 		}
- 
+
 		// Never trust client-supplied identity or room.
 		msg.RoomID = c.room.ID
 		msg.Sender = c.username
- 
+
 		outbound, err := json.Marshal(msg)
 		if err != nil {
 			continue
@@ -161,14 +161,14 @@ func (c *Client) readPump(m *Manager) {
 		c.room.broadcast(c, outbound)
 	}
 }
- 
+
 func (c *Client) writePump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
 		c.close()
 	}()
- 
+
 	for {
 		select {
 		case msg := <-c.send:
@@ -186,17 +186,17 @@ func (c *Client) writePump() {
 		}
 	}
 }
- 
+
 // ---------------------------------------------------------------------------
 // Room
 // ---------------------------------------------------------------------------
- 
+
 type Room struct {
 	ID      string
 	mu      sync.Mutex
 	clients map[*Client]struct{}
 }
- 
+
 func (r *Room) add(c *Client) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -206,7 +206,7 @@ func (r *Room) add(c *Client) bool {
 	r.clients[c] = struct{}{}
 	return true
 }
- 
+
 // remove reports whether c was present and whether the room is now empty.
 func (r *Room) remove(c *Client) (removed, empty bool) {
 	r.mu.Lock()
@@ -217,7 +217,7 @@ func (r *Room) remove(c *Client) (removed, empty bool) {
 	delete(r.clients, c)
 	return true, len(r.clients) == 0
 }
- 
+
 func (r *Room) broadcast(sender *Client, data []byte) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -232,34 +232,34 @@ func (r *Room) broadcast(sender *Client, data []byte) {
 		}
 	}
 }
- 
+
 // ---------------------------------------------------------------------------
 // Manager
 // ---------------------------------------------------------------------------
- 
+
 type Manager struct {
 	mu    sync.Mutex
 	rooms map[string]*Room
 	conns map[string]int // open connections per username
 }
- 
+
 func NewManager() *Manager {
 	return &Manager{
 		rooms: make(map[string]*Room),
 		conns: make(map[string]int),
 	}
 }
- 
+
 // join creates the room if needed and registers the client atomically, so a
 // room can't be garbage-collected between lookup and join.
 func (m *Manager) join(c *Client, roomID string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
- 
+
 	if m.conns[c.username] >= maxConnsPerUser {
 		return errTooManyConns
 	}
- 
+
 	room, ok := m.rooms[roomID]
 	if !ok {
 		if len(m.rooms) >= maxRooms {
@@ -272,16 +272,16 @@ func (m *Manager) join(c *Client, roomID string) error {
 	if !room.add(c) {
 		return errRoomFull
 	}
- 
+
 	c.room = room
 	m.conns[c.username]++
 	return nil
 }
- 
+
 func (m *Manager) leave(c *Client) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
- 
+
 	if c.room == nil {
 		return
 	}
@@ -297,7 +297,7 @@ func (m *Manager) leave(c *Client) {
 		log.Printf("[ROOM CLOSED] %s", c.room.ID)
 	}
 }
- 
+
 // extractToken accepts the JWT from the Authorization header (non-browser
 // clients) or from the Sec-WebSocket-Protocol header (browsers):
 //
@@ -316,14 +316,14 @@ func extractToken(r *http.Request) string {
 	}
 	return ""
 }
- 
+
 func (m *Manager) HandleWS(w http.ResponseWriter, r *http.Request) {
 	if !wsLimiter.allow(clientIP(r)) {
 		w.Header().Set("Retry-After", "60")
 		http.Error(w, "Too many requests", http.StatusTooManyRequests)
 		return
 	}
- 
+
 	roomID := r.URL.Query().Get("room_id")
 	if roomID == "" {
 		roomID = "general"
@@ -332,7 +332,7 @@ func (m *Manager) HandleWS(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid room_id", http.StatusBadRequest)
 		return
 	}
- 
+
 	claims, err := ValidateJWT(extractToken(r))
 	if err != nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -349,20 +349,20 @@ func (m *Manager) HandleWS(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
- 
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("upgrade error: %v", err)
 		return
 	}
- 
+
 	c := &Client{
 		conn:     conn,
 		username: claims.Username,
 		send:     make(chan []byte, sendBufferSize),
 		done:     make(chan struct{}),
 	}
- 
+
 	if err := m.join(c, roomID); err != nil {
 		conn.WriteControl(
 			websocket.CloseMessage,
@@ -372,7 +372,7 @@ func (m *Manager) HandleWS(w http.ResponseWriter, r *http.Request) {
 		conn.Close()
 		return
 	}
- 
+
 	// A long-lived socket must not outlive the token that authorised it.
 	if claims.ExpiresAt != nil {
 		c.expiry = time.AfterFunc(time.Until(claims.ExpiresAt.Time), func() {
@@ -384,8 +384,7 @@ func (m *Manager) HandleWS(w http.ResponseWriter, r *http.Request) {
 			c.close()
 		})
 	}
- 
+
 	go c.writePump()
 	go c.readPump(m)
 }
- 

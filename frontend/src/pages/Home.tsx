@@ -122,7 +122,7 @@ export default function Home({
         <div>
           <div className="flex items-center gap-2 mb-10">
             <span className="text-xl" aria-hidden="true">🧠</span>
-            <h1 className="text-lg font-bold tracking-wider text-sky-400">Learn Block</h1>
+            <h1 className="text-lg font-bold tracking-wider text-sky-400">Infinite World</h1>
           </div>
 
           <div className="space-y-2">
