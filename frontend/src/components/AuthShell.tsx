@@ -117,9 +117,9 @@ export const AuthShell: React.FC<AuthShellProps> = ({
                 >
                   <span className="absolute left-1/2 -top-[3px] -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-sky-300 shadow-[0_0_8px_2px_rgba(125,211,252,0.8)]" />
                 </div>
-                <span className="text-xl" aria-hidden="true">🧠</span>
+                <span className="text-xl" aria-hidden="true">🫍</span>
               </div>
-              <span className="text-lg font-bold tracking-wider text-sky-400">Learn Block</span>
+              <span className="text-lg font-bold tracking-wider text-sky-400">InfiniteWorld</span>
             </div>
 
             <div className="mb-7">

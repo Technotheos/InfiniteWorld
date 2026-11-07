@@ -1,0 +1,41 @@
+{
+  "id": "spark",
+  "name": "Social Spark",
+  "tagline": "Get a mission, talk it out together, and complete it as a team.",
+  "theme": "aurora",
+  "mode": "coop",
+  "min_players": 2,
+  "max_players": 6,
+  "missions": [
+    {
+      "kind": "talk",
+      "title": "Warm-up",
+      "brief": "Chat about the prompt. When your group is satisfied, everyone presses the button.",
+      "duration_ms": 90000,
+      "prompts": [
+        "Each person shares the best thing that happened to them this week, then you all pick the one that made you smile most.",
+        "Tell the group about a small thing that always improves your day, and find one that two of you share."
+      ]
+    },
+    {
+      "kind": "talk",
+      "title": "Deep Dive",
+      "brief": "Take your time with this one. Everyone presses the button when you have all had a turn.",
+      "duration_ms": 90000,
+      "prompts": [
+        "Share a skill you want to learn this year and why. Then help each other choose a tiny first step.",
+        "Each person names a project they are proud of. Ask each other one question about it."
+      ]
+    },
+    {
+      "kind": "talk",
+      "title": "Wild Card",
+      "brief": "Be creative. Every person must add at least one idea before you finish.",
+      "duration_ms": 90000,
+      "prompts": [
+        "Invent a ridiculous startup together: a name, what it sells, and its slogan.",
+        "You are stuck on an island and can bring three items. Agree on the three and defend each one."
+      ]
+    }
+  ]
+}

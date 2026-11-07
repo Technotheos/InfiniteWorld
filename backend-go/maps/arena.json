@@ -1,0 +1,29 @@
+{
+  "id": "arena",
+  "name": "Quick Arena",
+  "tagline": "Three fast games. Best total score wins.",
+  "theme": "nebula",
+  "mode": "versus",
+  "min_players": 1,
+  "max_players": 8,
+  "missions": [
+    {
+      "kind": "reaction",
+      "title": "Reflex",
+      "brief": "Wait for the orb to turn green, then click. Click early and that round scores zero.",
+      "rounds": 3
+    },
+    {
+      "kind": "math",
+      "title": "Math Sprint",
+      "brief": "Solve as many as you can. Right answers +100, wrong answers -50.",
+      "duration_ms": 30000
+    },
+    {
+      "kind": "typing",
+      "title": "Type Storm",
+      "brief": "Type the passage exactly as shown. Finishing early earns a bonus.",
+      "duration_ms": 45000
+    }
+  ]
+}

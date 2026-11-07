@@ -1,0 +1,43 @@
+{
+  "id": "cipher-lab",
+  "name": "Cipher Lab",
+  "tagline": "Crack encodings the way attackers do. Learn what each one really is.",
+  "theme": "matrix",
+  "mode": "versus",
+  "min_players": 1,
+  "max_players": 8,
+  "missions": [
+    {
+      "kind": "cipher",
+      "variant": "caesar",
+      "title": "Caesar Shift",
+      "brief": "Every letter was moved the same distance along the alphabet. Shift it back.",
+      "rounds": 2,
+      "duration_ms": 30000
+    },
+    {
+      "kind": "cipher",
+      "variant": "base64",
+      "title": "Base64",
+      "brief": "This is an encoding, not a lock. Decode the word.",
+      "rounds": 2,
+      "duration_ms": 30000
+    },
+    {
+      "kind": "cipher",
+      "variant": "hex",
+      "title": "Hex Bytes",
+      "brief": "Each pair of hex digits is one byte. Turn the bytes back into letters.",
+      "rounds": 2,
+      "duration_ms": 30000
+    },
+    {
+      "kind": "cipher",
+      "variant": "binary",
+      "title": "Binary",
+      "brief": "Eight bits per letter. Read them like the machine does.",
+      "rounds": 2,
+      "duration_ms": 40000
+    }
+  ]
+}
