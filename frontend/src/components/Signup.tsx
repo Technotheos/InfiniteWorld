@@ -78,7 +78,7 @@ export const Signup: React.FC<SignupProps> = ({ onSignupSuccess, onSwitchToLogin
     return null;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (loading) return;
     setError('');
@@ -105,6 +105,13 @@ export const Signup: React.FC<SignupProps> = ({ onSignupSuccess, onSwitchToLogin
 
       if (!response.ok) {
         throw new Error(await readError(response, 'Failed to create account.'));
+      }
+
+      // Safely consume the JSON response body returned by the Go server
+      try {
+        await response.json();
+      } catch {
+        // Ignored if empty
       }
 
       onSignupSuccess();

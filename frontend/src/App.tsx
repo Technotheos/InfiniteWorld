@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Login } from './components/Login';
+import { GameRoom, RoomPicker } from './game';
 import { Signup } from './components/Signup';
 import Home from './pages/Home';
 import RoomView from './roomView'; // Since roomView.tsx is directly inside src/
@@ -14,6 +15,9 @@ export default function App() {
   // Room & Chat states
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
   const [inputMessage, setInputMessage] = useState('');
+
+  const [playMode, setPlayMode] = useState<'off' | 'pick' | 'room'>('off');
+  const [gameCode, setGameCode] = useState('');
 
   // Check localStorage on initial load
   useEffect(() => {
@@ -58,13 +62,30 @@ export default function App() {
 
   // 2. If authenticated but no room selected, show your new Home Dashboard
   if (!selectedRoom) {
-    return (
-      <Home 
-        username={username}
-        onSelectRoom={(roomId) => setSelectedRoom(roomId)}
-        onLogout={handleLogout}
-      />
-    );
+    if (playMode === 'pick') {
+      return (
+        <>
+          <button onClick={() => setPlayMode('off')}
+            className="fixed left-4 top-4 z-50 rounded-xl bg-slate-800 px-3 py-1.5 text-sm text-white">← Back</button>
+          <RoomPicker token={token} onEnter={(c) => { setGameCode(c); setPlayMode('room'); }} />
+        </>
+      );
+    }
+    if (playMode === 'room') {
+      return <GameRoom code={gameCode} token={token} onLeave={() => setPlayMode('pick')} onAuthExpired={handleLogout} />;
+    }
+
+    if (!selectedRoom) {
+      return (
+        <>
+          <Home username={username} onSelectRoom={(id) => setSelectedRoom(id)} onLogout={handleLogout} />
+          <button onClick={() => setPlayMode('pick')}
+            className="fixed bottom-6 right-6 z-50 rounded-2xl bg-blue-600 px-5 py-3 font-semibold text-white shadow-xl hover:bg-blue-500">
+            ♨️ Play
+          </button>
+        </>
+      );
+    }
   }
 
   // 3. Active Room Chat View (using your roomView or embedded layout)

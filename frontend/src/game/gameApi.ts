@@ -1,7 +1,7 @@
 import type { MapInfo } from "./types";
+import { API_URL as API } from "../components/authApi";
 
 // Point these at your Go server. If VITE_API_URL is empty, same-origin is used.
-const API = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
 
 export function wsUrl(code: string): string {
   const explicit = import.meta.env.VITE_WS_URL as string | undefined;

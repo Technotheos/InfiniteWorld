@@ -1,5 +1,5 @@
 package main
- 
+
 import (
 	"context"
 	"crypto/rand"
@@ -15,15 +15,15 @@ import (
 	"strings"
 	"sync"
 	"time"
- 
+
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
- 
+
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
- 
+
 const (
 	bcryptCost      = 12
 	tokenTTL        = 15 * time.Minute
@@ -35,21 +35,21 @@ const (
 	maxFailedLogins = 5
 	lockoutDuration = 15 * time.Minute
 )
- 
+
 var (
 	jwtKey         []byte
 	allowedOrigins = map[string]bool{}
 	dummyHash      string // used to equalise timing for unknown usernames
- 
+
 	users = make(map[string]User)
 	mu    sync.RWMutex
- 
-	usernameRe = regexp.MustCompile(`^[a-z0-9_.-]{3,32}$`)
- 
+
+	usernameRe = regexp.MustCompile(`^[A-Za-z0-9_.-]{3,32}$`)
+
 	limiter = newRateLimiter(30, time.Minute) // per-IP: 30 auth requests/minute
 	lockout = newLoginTracker()
 )
- 
+
 type User struct {
 	ID        string    `json:"id"`
 	Username  string    `json:"username"`
@@ -57,16 +57,16 @@ type User struct {
 	Password  string    `json:"-"`
 	CreatedAt time.Time `json:"created_at"`
 }
- 
+
 type Claims struct {
 	Username string `json:"username"`
 	jwt.RegisteredClaims
 }
- 
+
 type ctxKey string
- 
+
 const usernameCtxKey ctxKey = "username"
- 
+
 // InitAuth must be called once from main() before serving requests.
 //
 //	JWT_SECRET       required, >= 32 bytes (e.g. `openssl rand -base64 48`)
@@ -77,13 +77,13 @@ func InitAuth() error {
 		return errors.New("JWT_SECRET must be set and at least 32 characters long")
 	}
 	jwtKey = []byte(secret)
- 
+
 	for _, o := range strings.Split(os.Getenv("ALLOWED_ORIGINS"), ",") {
 		if o = strings.TrimSpace(o); o != "" {
 			allowedOrigins[o] = true
 		}
 	}
- 
+
 	randomPw := make([]byte, 16)
 	if _, err := rand.Read(randomPw); err != nil {
 		return err
@@ -95,20 +95,20 @@ func InitAuth() error {
 	dummyHash = h
 	return nil
 }
- 
+
 // ---------------------------------------------------------------------------
 // Passwords & tokens
 // ---------------------------------------------------------------------------
- 
+
 func HashPassword(password string) (string, error) {
 	b, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
 	return string(b), err
 }
- 
+
 func CheckPasswordHash(password, hash string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
 }
- 
+
 func newID() (string, error) {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
@@ -116,7 +116,7 @@ func newID() (string, error) {
 	}
 	return hex.EncodeToString(b), nil
 }
- 
+
 func GenerateJWT(user User) (string, error) {
 	jti, err := newID()
 	if err != nil {
@@ -137,7 +137,7 @@ func GenerateJWT(user User) (string, error) {
 	}
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(jwtKey)
 }
- 
+
 func ValidateJWT(tokenStr string) (*Claims, error) {
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(
@@ -158,7 +158,7 @@ func ValidateJWT(tokenStr string) (*Claims, error) {
 	}
 	return claims, nil
 }
- 
+
 // AuthMiddleware protects routes. The username is available via UsernameFrom(r).
 func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return withSecurity("", func(w http.ResponseWriter, r *http.Request) {
@@ -183,16 +183,16 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		next(w, r.WithContext(context.WithValue(r.Context(), usernameCtxKey, claims.Username)))
 	})
 }
- 
+
 func UsernameFrom(r *http.Request) string {
 	s, _ := r.Context().Value(usernameCtxKey).(string)
 	return s
 }
- 
+
 // ---------------------------------------------------------------------------
 // HTTP plumbing: headers, CORS, body limits, rate limiting
 // ---------------------------------------------------------------------------
- 
+
 func setSecurityHeaders(w http.ResponseWriter) {
 	h := w.Header()
 	h.Set("Cache-Control", "no-store")
@@ -203,7 +203,7 @@ func setSecurityHeaders(w http.ResponseWriter) {
 	h.Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
 	h.Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
 }
- 
+
 // applyCORS only reflects origins on the allowlist. Never use "*" with auth.
 func applyCORS(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Vary", "Origin")
@@ -215,13 +215,13 @@ func applyCORS(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Max-Age", "600")
 	}
 }
- 
+
 // withSecurity wraps a handler. Pass method "" to allow any method.
 func withSecurity(method string, h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		setSecurityHeaders(w)
 		applyCORS(w, r)
- 
+
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -240,7 +240,7 @@ func withSecurity(method string, h http.HandlerFunc) http.HandlerFunc {
 		h(w, r)
 	}
 }
- 
+
 // clientIP deliberately ignores X-Forwarded-For (spoofable). If you sit behind
 // a trusted reverse proxy, configure that proxy to set RemoteAddr/real IP instead.
 func clientIP(r *http.Request) string {
@@ -250,37 +250,37 @@ func clientIP(r *http.Request) string {
 	}
 	return host
 }
- 
+
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
 }
- 
+
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
 }
- 
+
 // ---- simple in-memory sliding-window rate limiter (use Redis if multi-instance)
- 
+
 type rateLimiter struct {
 	mu     sync.Mutex
 	hits   map[string][]time.Time
 	limit  int
 	window time.Duration
 }
- 
+
 func newRateLimiter(limit int, window time.Duration) *rateLimiter {
 	return &rateLimiter{hits: make(map[string][]time.Time), limit: limit, window: window}
 }
- 
+
 func (rl *rateLimiter) allow(key string) bool {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
- 
+
 	now := time.Now()
 	cutoff := now.Add(-rl.window)
- 
+
 	if len(rl.hits) > 10000 { // bound memory
 		for k, ts := range rl.hits {
 			if len(ts) == 0 || ts[len(ts)-1].Before(cutoff) {
@@ -288,7 +288,7 @@ func (rl *rateLimiter) allow(key string) bool {
 			}
 		}
 	}
- 
+
 	recent := rl.hits[key][:0]
 	for _, t := range rl.hits[key] {
 		if t.After(cutoff) {
@@ -302,32 +302,32 @@ func (rl *rateLimiter) allow(key string) bool {
 	rl.hits[key] = append(recent, now)
 	return true
 }
- 
+
 // ---- per-username lockout (tracked for unknown usernames too, to avoid enumeration)
- 
+
 type loginState struct {
 	failures    int
 	lockedUntil time.Time
 }
- 
+
 type loginTracker struct {
 	mu sync.Mutex
 	m  map[string]*loginState
 }
- 
+
 func newLoginTracker() *loginTracker { return &loginTracker{m: make(map[string]*loginState)} }
- 
+
 func (t *loginTracker) isLocked(username string) bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	s, ok := t.m[username]
 	return ok && time.Now().Before(s.lockedUntil)
 }
- 
+
 func (t *loginTracker) fail(username string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
- 
+
 	if len(t.m) > 10000 {
 		now := time.Now()
 		for k, s := range t.m {
@@ -350,19 +350,19 @@ func (t *loginTracker) fail(username string) {
 		s.lockedUntil = time.Now().Add(lockoutDuration)
 	}
 }
- 
+
 func (t *loginTracker) reset(username string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	delete(t.m, username)
 }
- 
+
 // ---------------------------------------------------------------------------
 // Validation
 // ---------------------------------------------------------------------------
- 
+
 func normalizeUsername(s string) string { return strings.ToLower(strings.TrimSpace(s)) }
- 
+
 func validatePassword(pw string) error {
 	if len(pw) < minPasswordLen {
 		return fmt.Errorf("password must be at least %d characters", minPasswordLen)
@@ -372,7 +372,7 @@ func validatePassword(pw string) error {
 	}
 	return nil
 }
- 
+
 func validateEmail(email string) (string, error) {
 	email = strings.TrimSpace(email)
 	if email == "" {
@@ -387,19 +387,19 @@ func validateEmail(email string) (string, error) {
 	}
 	return strings.ToLower(email), nil
 }
- 
+
 // ---------------------------------------------------------------------------
 // Handlers
 // ---------------------------------------------------------------------------
- 
+
 var RegisterHandler = withSecurity(http.MethodPost, registerHandler)
 var LoginHandler = withSecurity(http.MethodPost, loginHandler)
- 
+
 func registerHandler(w http.ResponseWriter, r *http.Request) {
 	// PostFormValue reads the body only, so credentials never come from the URL/query string.
 	username := normalizeUsername(r.PostFormValue("username"))
 	password := r.PostFormValue("password")
- 
+
 	if !usernameRe.MatchString(username) {
 		writeError(w, http.StatusBadRequest, "Username must be 3-32 characters: a-z, 0-9, '_', '.', '-'")
 		return
@@ -413,7 +413,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
- 
+
 	// Hash BEFORE taking the lock so slow bcrypt calls never block other requests.
 	hashed, err := HashPassword(password)
 	if err != nil {
@@ -425,7 +425,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
- 
+
 	mu.Lock()
 	if _, exists := users[username]; exists {
 		mu.Unlock()
@@ -440,24 +440,24 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		CreatedAt: time.Now(),
 	}
 	mu.Unlock()
- 
+
 	writeJSON(w, http.StatusCreated, map[string]string{"message": "User registered successfully"})
 }
- 
+
 func loginHandler(w http.ResponseWriter, r *http.Request) {
 	username := normalizeUsername(r.PostFormValue("username"))
 	password := r.PostFormValue("password")
- 
+
 	if lockout.isLocked(username) {
 		w.Header().Set("Retry-After", fmt.Sprint(int(lockoutDuration.Seconds())))
 		writeError(w, http.StatusTooManyRequests, "Too many failed attempts, try again later")
 		return
 	}
- 
+
 	mu.RLock()
 	user, exists := users[username]
 	mu.RUnlock()
- 
+
 	// Always run bcrypt, even for unknown users, so response time doesn't reveal
 	// which usernames exist.
 	hash := dummyHash
@@ -465,24 +465,23 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		hash = user.Password
 	}
 	passwordOK := CheckPasswordHash(password, hash)
- 
+
 	if !exists || !passwordOK {
 		lockout.fail(username)
 		writeError(w, http.StatusUnauthorized, "Invalid username or password")
 		return
 	}
 	lockout.reset(username)
- 
+
 	tokenString, err := GenerateJWT(user)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
- 
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"token":      tokenString,
 		"username":   user.Username,
 		"expires_in": int(tokenTTL.Seconds()),
 	})
 }
- 

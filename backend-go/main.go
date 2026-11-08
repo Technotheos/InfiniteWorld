@@ -18,12 +18,15 @@ func main() {
 	}
  
 	manager := NewManager()
- 
+	hub, err := NewGameHub()
+	if err != nil {
+		log.Fatalf("game hub: %v", err)
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/signup", RegisterHandler)
 	mux.HandleFunc("/api/login", LoginHandler)
 	mux.HandleFunc("/ws", manager.HandleWS)
- 
+	hub.Register(mux)
 	addr := os.Getenv("ADDR")
 	if addr == "" {
 		addr = ":8080"
