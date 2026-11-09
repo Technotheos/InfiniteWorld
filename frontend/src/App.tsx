@@ -3,9 +3,13 @@ import { Login } from './components/Login';
 import { GameRoom, RoomPicker } from './game';
 import { Signup } from './components/Signup';
 import Home from './pages/Home';
-import RoomView from './roomView'; // Since roomView.tsx is directly inside src/
+import { ChainSecurityLab } from './game/chain-lab';
 import { useWebSocket } from './hooks/useWebSocket';
+import { useEngineStatus } from './hooks/useEngineStatus';
 import { ArrowLeft, Send } from 'lucide-react';
+
+// The live chat room that goes with the Chain Security Lab.
+const LAB_CHAT_ROOM = 'zeroday-websec';
 
 export default function App() {
   const [token, setToken] = useState<string | null>(null);
@@ -19,6 +23,9 @@ export default function App() {
   const [playMode, setPlayMode] = useState<'off' | 'pick' | 'room'>('off');
   const [gameCode, setGameCode] = useState('');
 
+  // Chain Security Lab room (runs in the browser, no server room needed)
+  const [labOpen, setLabOpen] = useState(false);
+
   // Check localStorage on initial load
   useEffect(() => {
     const savedToken = localStorage.getItem('jwt_token');
@@ -29,7 +36,8 @@ export default function App() {
     }
   }, []);
 
-  const { messages, sendMessage } = useWebSocket(selectedRoom!);
+  const { messages, sendMessage } = useWebSocket(selectedRoom);
+  const engineStatus = useEngineStatus(Boolean(token && username));
 
   const handleLogout = () => {
     localStorage.removeItem('jwt_token');
@@ -37,6 +45,8 @@ export default function App() {
     setToken(null);
     setUsername(null);
     setSelectedRoom(null);
+    setLabOpen(false);
+    setPlayMode('off');
   };
 
   // 1. If not authenticated, show Login or Signup
@@ -60,7 +70,7 @@ export default function App() {
     );
   }
 
-  // 2. If authenticated but no room selected, show your new Home Dashboard
+  // 2. Authenticated, no chat room open: Home, the lab, or the arcade
   if (!selectedRoom) {
     if (playMode === 'pick') {
       return (
@@ -75,20 +85,30 @@ export default function App() {
       return <GameRoom code={gameCode} token={token} onLeave={() => setPlayMode('pick')} onAuthExpired={handleLogout} />;
     }
 
-    if (!selectedRoom) {
+    if (labOpen) {
       return (
-        <>
-          <Home username={username} onSelectRoom={(id) => setSelectedRoom(id)} onLogout={handleLogout} />
-          <button onClick={() => setPlayMode('pick')}
-            className="fixed bottom-6 right-6 z-50 rounded-2xl bg-blue-600 px-5 py-3 font-semibold text-white shadow-xl hover:bg-blue-500">
-            ♨️ Play
-          </button>
-        </>
+        <ChainSecurityLab
+          username={username}
+          onLeave={() => setLabOpen(false)}
+          onDiscuss={() => setSelectedRoom(LAB_CHAT_ROOM)}
+        />
       );
     }
+
+    return (
+      <Home
+        username={username}
+        engineStatus={engineStatus}
+        onOpenLab={() => setLabOpen(true)}
+        onOpenPlay={() => setPlayMode('pick')}
+        onSelectRoom={(id) => setSelectedRoom(id)}
+        onLogout={handleLogout}
+      />
+    );
   }
 
-  // 3. Active Room Chat View (using your roomView or embedded layout)
+  // 3. Active chat room view. "Back" returns to wherever you came from
+  //    (the lab stays open underneath if you opened the chat from it).
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-2xl h-[85vh] bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col">
@@ -97,7 +117,7 @@ export default function App() {
             onClick={() => setSelectedRoom(null)}
             className="flex items-center gap-2 text-sm bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-xl transition-colors"
           >
-            <ArrowLeft size={16} /> Back to Dashboard
+            <ArrowLeft size={16} /> {labOpen ? 'Back to the lab' : 'Back to Dashboard'}
           </button>
           <span className="font-semibold text-slate-200">Room: {selectedRoom}</span>
         </div>

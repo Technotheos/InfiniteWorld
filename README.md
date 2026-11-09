@@ -42,4 +42,24 @@ See [SECURITY.md](SECURITY.md) for the full security model and known limitations
 - **FastAPI:** Python service *(in progress)*
 - **Frontend:** React, TypeScript, Vite, Tailwind CSS
 - **Database:** PostgreSQL
-- **Infra:** Docker, Docker Compose, redis,...
+- **Infra:** Docker, Docker Compose, redis,...(for later, only added complexity now)
+
+
+
+**Embo, the mascot** (`src/mascot/`): a cute fire slug that lives at the bottom
+  of the screen. It wanders around, waves, juggles sparks, trips over nothing,
+  cracks jokes in speech bubbles and falls asleep if you leave it alone. Its eyes
+  follow the cursor, and poking it repeatedly gets increasingly dramatic reactions.
+  It is drawn in SVG and animated with CSS, so it adds no extra dependencies, and it
+  respects `prefers-reduced-motion`. You can hide it with the × button, and that
+  choice is remembered.
+  
+ It's a great interative component in the app, it literally gives a soul to the environment. i thought about making it like an orca, but that sunny character was convenient with the celestial background. please feel free to share you designs or ideas at any level to improve the mascot, the app, and the engineering of this entire app.
+
+  Other components can make Embo react to what is happening in the app:
+
+  ```tsx
+  const mascot = useMascot();
+  mascot.say("Nice one!");
+  mascot.react("cheer", "You won!"); // poses: wave, cheer, sad, surprised, trip, dizzy, juggle, sleep
+  ```

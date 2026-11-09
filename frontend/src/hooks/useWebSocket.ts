@@ -1,16 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 
-export const useWebSocket = (roomId: string) => {
+/** Pass `null` while no room is open: no socket is created until there is a room. */
+export const useWebSocket = (roomId: string | null) => {
   const [messages, setMessages] = useState<any[]>([]);
   const socketRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
+    if (!roomId) return;
+
     // 1. Grab the JWT token stored during login
     const token = localStorage.getItem('jwt_token');
     if (!token) {
       console.error('No JWT token found. Please log in first.');
       return;
     }
+
+    setMessages([]); // each room starts with a clean history
 
     // 2. Connect to Go backend passing the token and room_id
     const wsUrl = `ws://localhost:8080/ws?token=${token}&room_id=${roomId}`;
