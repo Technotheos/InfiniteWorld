@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"net/mail"
@@ -173,10 +174,7 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			writeError(w, http.StatusUnauthorized, "Unauthorized")
 			return
 		}
-		mu.RLock()
-		_, exists := users[claims.Username]
-		mu.RUnlock()
-		if !exists {
+		if !userExists(r.Context(), claims.Username) {
 			writeError(w, http.StatusUnauthorized, "Unauthorized")
 			return
 		}
@@ -420,26 +418,19 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
-	id, err := newID()
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Internal server error")
+	// The store assigns a random ID (never the username) and enforces uniqueness.
+	if _, err := userStore().Create(r.Context(), username, email, hashed); err != nil {
+		switch {
+		case errors.Is(err, ErrUsernameTaken):
+			writeError(w, http.StatusConflict, "Username already taken")
+		case errors.Is(err, ErrEmailTaken):
+			writeError(w, http.StatusConflict, "Email already in use")
+		default:
+			log.Printf("register: %v", err)
+			writeError(w, http.StatusInternalServerError, "Internal server error")
+		}
 		return
 	}
-
-	mu.Lock()
-	if _, exists := users[username]; exists {
-		mu.Unlock()
-		writeError(w, http.StatusConflict, "Username already taken")
-		return
-	}
-	users[username] = User{
-		ID:        id, // random ID, not the username
-		Username:  username,
-		Email:     email,
-		Password:  hashed,
-		CreatedAt: time.Now(),
-	}
-	mu.Unlock()
 
 	writeJSON(w, http.StatusCreated, map[string]string{"message": "User registered successfully"})
 }
@@ -454,9 +445,12 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mu.RLock()
-	user, exists := users[username]
-	mu.RUnlock()
+	user, exists, err := userStore().ByUsername(r.Context(), username)
+	if err != nil {
+		log.Printf("login lookup: %v", err)
+		writeError(w, http.StatusServiceUnavailable, "Service temporarily unavailable")
+		return
+	}
 
 	// Always run bcrypt, even for unknown users, so response time doesn't reveal
 	// which usernames exist.

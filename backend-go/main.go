@@ -1,5 +1,5 @@
 package main
- 
+
 import (
 	"context"
 	"errors"
@@ -10,13 +10,22 @@ import (
 	"syscall"
 	"time"
 )
- 
+
 func main() {
 	// Loads JWT_SECRET and ALLOWED_ORIGINS; refuses to start if the secret is weak/missing.
 	if err := InitAuth(); err != nil {
 		log.Fatalf("auth init failed: %v", err)
 	}
- 
+
+	// Connect to PostgreSQL (users and logins are stored there).
+	initCtx, cancelInit := context.WithTimeout(context.Background(), 30*time.Second)
+	if err := InitStore(initCtx); err != nil {
+		cancelInit()
+		log.Fatalf("database: %v", err)
+	}
+	cancelInit()
+	defer store.Close()
+
 	manager := NewManager()
 	hub, err := NewGameHub()
 	if err != nil {
@@ -31,7 +40,7 @@ func main() {
 	if addr == "" {
 		addr = ":8080"
 	}
- 
+
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           mux,
@@ -43,10 +52,10 @@ func main() {
 		// Note: these timeouts stop applying to a connection once it is
 		// upgraded to a WebSocket; ws.go manages its own deadlines.
 	}
- 
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
- 
+
 	go func() {
 		certFile, keyFile := os.Getenv("TLS_CERT_FILE"), os.Getenv("TLS_KEY_FILE")
 		var err error
@@ -61,7 +70,7 @@ func main() {
 			log.Fatal(err)
 		}
 	}()
- 
+
 	<-ctx.Done()
 	log.Println("shutting down...")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -70,4 +79,3 @@ func main() {
 		log.Printf("shutdown error: %v", err)
 	}
 }
- 

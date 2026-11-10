@@ -338,10 +338,7 @@ func (m *Manager) HandleWS(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	mu.RLock()
-	_, exists := users[claims.Username]
-	mu.RUnlock()
-	if !exists {
+	if !userExists(r.Context(), claims.Username) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
