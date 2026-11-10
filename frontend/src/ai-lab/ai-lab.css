@@ -1,0 +1,37 @@
+/* "Neural Aurora" theme, scoped to the AI room */
+.ail{--bg:#04050d;--panel:rgba(11,15,34,.72);--line:rgba(130,150,255,.18);--cy:#22d3ee;--vi:#8b5cf6;--pk:#f472b6;--lime:#a3e635;--tx:#e8edff;--mu:#8e97c4;
+  position:relative;min-height:100vh;color:var(--tx);background:radial-gradient(1200px 600px at 15% -10%,rgba(139,92,246,.22),transparent 60%),radial-gradient(900px 500px at 100% 10%,rgba(34,211,238,.16),transparent 60%),var(--bg);font-family:Manrope,system-ui,sans-serif}
+.ail-backdrop{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;opacity:.55}
+.ail-wrap{position:relative;z-index:1;max-width:1240px;margin:0 auto;padding:20px 20px 120px}
+.ail-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.ail-btn{border:1px solid var(--line);background:rgba(20,26,56,.7);color:var(--tx);padding:8px 14px;border-radius:12px;font-size:13px;cursor:pointer;transition:.2s}
+.ail-btn:hover{border-color:var(--cy);box-shadow:0 0 18px rgba(34,211,238,.35)}
+.ail-btn.on{background:linear-gradient(135deg,var(--cy),var(--vi));border-color:transparent;color:#041018;font-weight:700}
+.ail-hero{margin:26px 0 18px}
+.ail-kick{letter-spacing:.28em;font-size:11px;color:var(--cy);text-transform:uppercase}
+.ail-title{font-size:clamp(30px,5vw,52px);font-weight:800;line-height:1.05;margin:6px 0;background:linear-gradient(90deg,var(--cy),var(--vi) 50%,var(--pk));-webkit-background-clip:text;background-clip:text;color:transparent;background-size:200% 100%;animation:ail-flow 8s linear infinite}
+.ail-sub{color:var(--mu);max-width:720px;line-height:1.55}
+.ail-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+.ail-tab{padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--mu);font-size:13px;cursor:pointer}
+.ail-tab.on{color:var(--tx);border-color:var(--vi);box-shadow:0 0 16px rgba(139,92,246,.45)}
+.ail-tab.soon{opacity:.5;cursor:default}
+.ail-grid{display:grid;gap:16px;grid-template-columns:1fr}
+@media(min-width:1000px){.ail-grid{grid-template-columns:minmax(0,5fr) minmax(0,6fr)}}
+.ail-card{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:18px;backdrop-filter:blur(10px);box-shadow:0 0 40px rgba(60,40,160,.15)}
+.ail-card h3{margin:0 0 8px;font-size:15px;color:var(--cy)}
+.ail-p{color:#c9d1f5;line-height:1.65;font-size:14px;margin:8px 0}
+.ail-eq{display:block;margin:8px 0;padding:10px 12px;border-radius:12px;background:rgba(4,8,24,.8);border:1px solid var(--line);font:500 14px/1.5 ui-monospace,Menlo,monospace;color:#ffe9ff;overflow-x:auto}
+.ail-eq small{display:block;color:var(--mu);font-size:12px;margin-top:2px}
+.ail-code{margin:8px 0;padding:12px;border-radius:12px;background:#02040e;border:1px solid var(--line);font:12.5px/1.55 ui-monospace,Menlo,monospace;color:#bfe9ff;overflow-x:auto;white-space:pre}
+.ail-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.ail-row label{font-size:12px;color:var(--mu);display:flex;gap:6px;align-items:center}
+.ail-viz{display:grid;gap:12px;grid-template-columns:1fr}
+@media(min-width:620px){.ail-viz{grid-template-columns:1fr 1fr}}
+.ail-canvas{width:100%;aspect-ratio:1;border-radius:14px;border:1px solid var(--line);background:#02040e}
+.ail-stat{font:600 12px ui-monospace,monospace;color:var(--lime)}
+.ail-flow{stroke-dasharray:3 9;animation:ail-dash 1s linear infinite}
+.ail-flow.bwd{animation-direction:reverse}
+.ail-node{transition:fill-opacity .4s,r .4s}
+@keyframes ail-dash{to{stroke-dashoffset:-24}}
+@keyframes ail-flow{to{background-position:200% 0}}
+@media(prefers-reduced-motion:reduce){.ail *{animation:none!important}}

@@ -1,6 +1,9 @@
 import { useCallback, useRef, useState } from 'react';
 import { motion, useReducedMotion, type MotionProps } from 'framer-motion';
-import { ArrowUpRight, Compass, Gamepad2, Home as HomeIcon, LogOut, MessageSquare, ShieldAlert } from 'lucide-react';
+import {
+  ArrowUpRight, Brain, Bug, Compass, Gamepad2, Home as HomeIcon, LogOut, MessageSquare,
+  Network, ShieldAlert, TrendingUp, Zap, type LucideIcon,
+} from 'lucide-react';
 import '../styles/celestial.css';
 import { Starfield, type StarfieldHandle } from '../components/Starfield';
 import { Sigil } from '../components/Sigil';
@@ -15,6 +18,8 @@ interface HomeProps {
   username?: string | null;
   /** Open the Chain Security Lab room. */
   onOpenLab: () => void;
+  /** Open the Deep AI Lab room. */
+  onOpenAILab: () => void;
   /** Open the game room picker (Quick Arena, Cipher Lab, Social Spark...). */
   onOpenPlay: () => void;
   /** Join a live chat room by id. */
@@ -38,30 +43,47 @@ const FOCUS =
 /* -------------------------------------------------------------------------- */
 
 // Room ids must match the server's ^[A-Za-z0-9_-]{1,64}$ rule.
-const chatRooms = [
+// Each room has its own icon + accent colour so the list reads at a glance.
+const chatRooms: { id: string; title: string; tag: string; desc: string; icon: LucideIcon; accent: string }[] = [
   {
     id: 'zeroday-websec',
-    title: '🛡️ Zero-Day & WebSec',
+    title: 'Zero-Day & WebSec',
+    tag: 'Security',
     desc: 'Vulnerabilities, write-ups and patches. Talk about the lab here.',
-    orb: 'radial-gradient(circle at 30% 30%, #fecaca, #ff5d4a 55%, #5c1a12)',
+    icon: Bug,
+    accent: '#ff5d4a',
+  },
+  {
+    id: 'ai-deep-dive',
+    title: 'Deep AI',
+    tag: 'Deep learning',
+    desc: 'Algorithms, the math behind them, and papers. Talk about the AI lab here.',
+    icon: Brain,
+    accent: '#22d3ee',
   },
   {
     id: 'nasdaq-scalping',
-    title: '📈 Nasdaq 1-Min Scalps',
+    title: 'Nasdaq 1-Min Scalps',
+    tag: 'Markets',
     desc: 'Tape reading and fast entries.',
-    orb: 'radial-gradient(circle at 30% 30%, #fde9c4, #e9b872 55%, #5a3b12)',
+    icon: TrendingUp,
+    accent: '#e9b872',
   },
   {
     id: 'crypto-alpha',
-    title: '⚡ Crypto Alpha & Flows',
+    title: 'Crypto Alpha & Flows',
+    tag: 'On-chain',
     desc: 'On-chain flows and setups.',
-    orb: 'radial-gradient(circle at 30% 30%, #ddd8ff, #9b8cff 55%, #2a1750)',
+    icon: Zap,
+    accent: '#9b8cff',
   },
   {
     id: 'distributed-systems',
-    title: '⚙️ Distributed Systems',
+    title: 'Distributed Systems',
+    tag: 'Systems',
     desc: 'Consensus, queues and failure modes.',
-    orb: 'radial-gradient(circle at 30% 30%, #c9f7ef, #5eead4 55%, #0f3d36)',
+    icon: Network,
+    accent: '#5eead4',
   },
 ];
 
@@ -139,6 +161,37 @@ function MiniConstellation({ done }: { done: Record<string, number> }) {
   );
 }
 
+/** A tiny animated neural net for the Deep AI Lab card. */
+function MiniNeuralNet() {
+  const layers = [3, 4, 4, 2];
+  const x = (l: number) => 14 + l * 24;
+  const y = (l: number, i: number) => 35 + (i - (layers[l] - 1) / 2) * 13;
+  return (
+    <svg viewBox="0 0 100 70" className="w-full h-44" aria-hidden="true">
+      {layers.slice(0, -1).map((n, l) =>
+        Array.from({ length: n }).map((_, i) =>
+          Array.from({ length: layers[l + 1] }).map((_, j) => (
+            <line
+              key={`${l}-${i}-${j}`}
+              x1={x(l)} y1={y(l, i)} x2={x(l + 1)} y2={y(l + 1, j)}
+              stroke={(i + j) % 2 ? 'rgba(34,211,238,0.55)' : 'rgba(244,114,182,0.45)'}
+              strokeWidth="0.5"
+              strokeDasharray="1.5 3"
+              className="iw-anim"
+              style={{ animation: `iw-drift ${6 + ((i + j) % 3)}s ease-in-out infinite` }}
+            />
+          )),
+        ),
+      )}
+      {layers.map((n, l) =>
+        Array.from({ length: n }).map((_, i) => (
+          <circle key={`${l}-${i}`} cx={x(l)} cy={y(l, i)} r="2.6" fill={l % 2 ? '#8b5cf6' : '#22d3ee'} />
+        )),
+      )}
+    </svg>
+  );
+}
+
 /* -------------------------------------------------------------------------- */
 /*  Home                                                                      */
 /* -------------------------------------------------------------------------- */
@@ -146,6 +199,7 @@ function MiniConstellation({ done }: { done: Record<string, number> }) {
 export default function Home({
   username,
   onOpenLab,
+  onOpenAILab,
   onOpenPlay,
   onSelectRoom,
   onLogout,
@@ -230,6 +284,9 @@ export default function Home({
             </button>
             <button onClick={() => void enter(onOpenLab)} disabled={warping} className={`${navBtn} text-[#a49fb0] hover:text-[#eee9dc] hover:bg-white/5`}>
               <ShieldAlert size={18} /> Chain Security Lab
+            </button>
+            <button onClick={() => void enter(onOpenAILab)} disabled={warping} className={`${navBtn} text-[#a49fb0] hover:text-cyan-300 hover:bg-cyan-400/5`}>
+              <Brain size={18} /> Deep AI Lab
             </button>
             <button onClick={() => void enter(onOpenPlay)} disabled={warping} className={`${navBtn} text-[#a49fb0] hover:text-[#eee9dc] hover:bg-white/5`}>
               <Gamepad2 size={18} /> Arcade
@@ -318,7 +375,7 @@ export default function Home({
             “Time is not a currency to be spent, but an orbit—choose to revolve around what anchors your spirit, deepens your bonds, and expands your universe.”
           </motion.p>
 
-          {/* Featured room */}
+          {/* Featured room: Chain Security Lab */}
           <motion.section {...rise(2)} aria-label="Chain Security Lab">
             <div className="relative overflow-hidden rounded-3xl border border-[#e9b872]/30 bg-[#0d0b16]/75 backdrop-blur-md p-6 sm:p-8 shadow-[0_0_60px_rgba(233,184,114,0.08)]">
               <svg viewBox="0 0 400 400" className="absolute -right-24 -top-24 w-[420px] h-[420px] opacity-60 pointer-events-none" aria-hidden="true">
@@ -367,8 +424,41 @@ export default function Home({
             </div>
           </motion.section>
 
+          {/* Featured room: Deep AI Lab */}
+          <motion.section {...rise(3)} aria-label="Deep AI Lab">
+            <div className="relative overflow-hidden rounded-3xl border border-cyan-400/30 bg-[#05060f]/80 backdrop-blur-md p-6 sm:p-8 shadow-[0_0_60px_rgba(34,211,238,0.12)]">
+              <div className="absolute -right-20 -top-20 h-72 w-72 rounded-full bg-violet-500/25 blur-[90px] pointer-events-none" />
+              <div className="absolute -left-24 -bottom-24 h-64 w-64 rounded-full bg-cyan-400/10 blur-[90px] pointer-events-none" />
+              <div className="relative grid lg:grid-cols-5 gap-6 items-center">
+                <div className="lg:col-span-3">
+                  <div className="flex flex-wrap gap-2 text-[11px] text-[#c9c4d2]">
+                    <span className="px-2.5 py-1 rounded-full border border-cyan-400/40 text-cyan-300">Deep learning</span>
+                    <span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10">Live models</span>
+                    <span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10">Math + code</span>
+                  </div>
+                  <h3 className="iw-display text-4xl sm:text-5xl font-light mt-3 bg-gradient-to-r from-cyan-300 via-violet-400 to-pink-400 bg-clip-text text-transparent">
+                    Deep AI Lab
+                  </h3>
+                  <p className="text-sm text-[#c9c4d2] leading-relaxed mt-3 max-w-xl">
+                    Open the black box. Watch backpropagation train a real network, see the math behind it, and read the code.
+                  </p>
+                  <button
+                    onClick={() => void enter(onOpenAILab)}
+                    disabled={warping}
+                    className={`mt-6 px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-300 to-violet-400 text-[#04050d] font-bold text-sm hover:brightness-110 disabled:opacity-60 transition flex items-center gap-2 ${FOCUS}`}
+                  >
+                    Enter the lab <ArrowUpRight size={16} />
+                  </button>
+                </div>
+                <div className="lg:col-span-2">
+                  <MiniNeuralNet />
+                </div>
+              </div>
+            </div>
+          </motion.section>
+
           {/* Arcade */}
-          <motion.section {...rise(3)} aria-label="Arcade" className="space-y-4">
+          <motion.section {...rise(4)} aria-label="Arcade" className="space-y-4">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
                 <h3 className="iw-display text-3xl font-light">Arcade</h3>
@@ -405,7 +495,7 @@ export default function Home({
           </motion.section>
 
           {/* Chat rooms */}
-          <motion.section {...rise(4)} aria-label="Chat rooms" ref={chatRef} className="space-y-4 scroll-mt-8">
+          <motion.section {...rise(5)} aria-label="Chat rooms" ref={chatRef} className="space-y-4 scroll-mt-8">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
                 <h3 className="iw-display text-3xl font-light">Chat rooms</h3>
@@ -420,27 +510,46 @@ export default function Home({
               </button>
             </div>
             <ul className="space-y-3">
-              {chatRooms.map((r) => (
-                <li
-                  key={r.id}
-                  className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-[#0d0b16]/75 backdrop-blur-md px-5 py-4 hover:border-white/25 transition-colors"
-                >
-                  <div className="flex items-center gap-4 min-w-0">
-                    <span className="w-10 h-10 shrink-0 rounded-full" style={{ background: r.orb, boxShadow: '0 0 24px rgba(155,140,255,0.25)' }} aria-hidden="true" />
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold text-[#eee9dc] truncate">{r.title}</div>
-                      <div className="text-xs text-[#a49fb0] truncate">{r.desc}</div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => void enter(() => onSelectRoom(r.id))}
-                    disabled={warping}
-                    className={`shrink-0 px-5 py-2 rounded-xl bg-[#e9b872] text-[#1a1208] font-bold text-sm hover:brightness-110 disabled:opacity-60 transition ${FOCUS}`}
+              {chatRooms.map((r) => {
+                const Icon = r.icon;
+                return (
+                  <li
+                    key={r.id}
+                    className="relative overflow-hidden flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-[#0d0b16]/75 backdrop-blur-md pl-6 pr-5 py-4 hover:border-white/25 transition-colors"
                   >
-                    Join
-                  </button>
-                </li>
-              ))}
+                    <span aria-hidden="true" className="absolute inset-y-0 left-0 w-1" style={{ background: r.accent }} />
+                    <div className="flex items-center gap-4 min-w-0">
+                      <span
+                        aria-hidden="true"
+                        className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border"
+                        style={{ color: r.accent, borderColor: `${r.accent}55`, background: `${r.accent}14`, boxShadow: `0 0 26px ${r.accent}33` }}
+                      >
+                        <Icon size={22} />
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-[#eee9dc] truncate">{r.title}</span>
+                          <span
+                            className="hidden sm:inline shrink-0 rounded-full border px-2 py-0.5 text-[10px]"
+                            style={{ color: r.accent, borderColor: `${r.accent}55` }}
+                          >
+                            {r.tag}
+                          </span>
+                        </div>
+                        <div className="text-xs text-[#a49fb0] truncate">{r.desc}</div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => void enter(() => onSelectRoom(r.id))}
+                      disabled={warping}
+                      className={`shrink-0 px-5 py-2 rounded-xl text-[#0b0a10] font-bold text-sm hover:brightness-110 disabled:opacity-60 transition ${FOCUS}`}
+                      style={{ background: r.accent }}
+                    >
+                      Join
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           </motion.section>
         </div>

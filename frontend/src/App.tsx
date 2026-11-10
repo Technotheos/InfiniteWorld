@@ -7,6 +7,9 @@ import { ChainSecurityLab } from './game/chain-lab';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useEngineStatus } from './hooks/useEngineStatus';
 import { ArrowLeft, Send } from 'lucide-react';
+import { AILab } from './ai-lab';
+
+const AI_CHAT_ROOM = 'ai-deep-dive';
 
 // The live chat room that goes with the Chain Security Lab.
 const LAB_CHAT_ROOM = 'zeroday-websec';
@@ -25,6 +28,7 @@ export default function App() {
 
   // Chain Security Lab room (runs in the browser, no server room needed)
   const [labOpen, setLabOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false)
 
   // Check localStorage on initial load
   useEffect(() => {
@@ -46,6 +50,7 @@ export default function App() {
     setUsername(null);
     setSelectedRoom(null);
     setLabOpen(false);
+    setAiOpen(false);
     setPlayMode('off');
   };
 
@@ -85,6 +90,16 @@ export default function App() {
       return <GameRoom code={gameCode} token={token} onLeave={() => setPlayMode('pick')} onAuthExpired={handleLogout} />;
     }
 
+    if (aiOpen) {
+      return (
+        <AILab
+          username={username}
+          onLeave={() => setAiOpen(false)}
+          onDiscuss={() => setSelectedRoom(AI_CHAT_ROOM)}
+        />
+      );
+    }
+
     if (labOpen) {
       return (
         <ChainSecurityLab
@@ -95,11 +110,13 @@ export default function App() {
       );
     }
 
+
     return (
       <Home
         username={username}
         engineStatus={engineStatus}
         onOpenLab={() => setLabOpen(true)}
+        onOpenAILab={() => setAiOpen(true)}
         onOpenPlay={() => setPlayMode('pick')}
         onSelectRoom={(id) => setSelectedRoom(id)}
         onLogout={handleLogout}
