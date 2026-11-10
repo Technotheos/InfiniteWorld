@@ -107,3 +107,22 @@ These cover the store round-trip, duplicate username and email handling, and sig
 
 ### Not persisted yet
 Refresh tokens (the table exists, no flow yet), lab progress (`localStorage`), chat history, game results. The login lockout and the rate limiter are in memory and reset on restart.
+
+### Deep AI Lab
+
+A room that opens the black box of AI algorithms: the problem that stalled
+researchers, the idea that solved it, the math, the code, and a live model you
+can poke.
+
+- **Lesson 1: Backpropagation.** A real neural network trains in your browser.
+  Watch signals flow forward and error gradients flow backward, see the decision
+  boundary and loss curve update live, and compare SGD with Adam on circles, XOR
+  and spiral data. The vanishing gradient problem is visible in the animation.
+- **From scratch.** The network (`src/ai-lab/nn.ts`) uses no ML libraries.
+  It implements tanh and sigmoid layers, binary cross-entropy, backprop and Adam.
+- **Own theme.** The room uses a "Neural Aurora" look (cyan, violet and pink on
+  deep space) with an animated neural-field background.
+- **Easy to extend.** To add a lesson, build a component and register it in the
+  `LESSONS` list in `src/ai-lab/AILab.tsx`. Attention, BPE tokenization,
+  diffusion and PPO are planned.
+- **Discussion.** The room links to the `ai-deep-dive` chat room.
