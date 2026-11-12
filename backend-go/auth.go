@@ -57,6 +57,12 @@ type User struct {
 	Email     string    `json:"email"`
 	Password  string    `json:"-"`
 	CreatedAt time.Time `json:"created_at"`
+
+	// Profile fields (see profile.go). Avatar bytes are never put in JSON.
+	Bio               string    `json:"-"`
+	Avatar            []byte    `json:"-"`
+	AvatarUpdated     time.Time `json:"-"`
+	UsernameChangedAt time.Time `json:"-"`
 }
 
 type Claims struct {
@@ -162,7 +168,13 @@ func ValidateJWT(tokenStr string) (*Claims, error) {
 
 // AuthMiddleware protects routes. The username is available via UsernameFrom(r).
 func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
-	return withSecurity("", func(w http.ResponseWriter, r *http.Request) {
+	return AuthMiddlewareLimit(maxBodyBytes, next)
+}
+
+// AuthMiddlewareLimit is AuthMiddleware with a custom request-body cap
+// (used by the avatar upload, which is larger than an auth form).
+func AuthMiddlewareLimit(limit int64, next http.HandlerFunc) http.HandlerFunc {
+	return withSecurityLimit("", limit, func(w http.ResponseWriter, r *http.Request) {
 		const prefix = "Bearer "
 		h := r.Header.Get("Authorization")
 		if !strings.HasPrefix(h, prefix) {
@@ -216,6 +228,11 @@ func applyCORS(w http.ResponseWriter, r *http.Request) {
 
 // withSecurity wraps a handler. Pass method "" to allow any method.
 func withSecurity(method string, h http.HandlerFunc) http.HandlerFunc {
+	return withSecurityLimit(method, maxBodyBytes, h)
+}
+
+// withSecurityLimit is withSecurity with an explicit request-body cap.
+func withSecurityLimit(method string, limit int64, h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		setSecurityHeaders(w)
 		applyCORS(w, r)
@@ -234,7 +251,7 @@ func withSecurity(method string, h http.HandlerFunc) http.HandlerFunc {
 			writeError(w, http.StatusTooManyRequests, "Too many requests")
 			return
 		}
-		r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
+		r.Body = http.MaxBytesReader(w, r.Body, limit)
 		h(w, r)
 	}
 }

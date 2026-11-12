@@ -29,3 +29,10 @@
 @media (prefers-reduced-motion: reduce) {
   .iw-anim, .iw-spin, .iw-spin-slow, .iw-ping { animation: none !important; }
 }
+
+/* "Ambient motion" off (Settings > Appearance): still the whole screen, but keep it readable. */
+.iw-calm .iw-anim,
+.iw-calm .iw-spin,
+.iw-calm .iw-spin-slow,
+.iw-calm .iw-ping,
+.iw-calm .animate-pulse { animation: none !important; }

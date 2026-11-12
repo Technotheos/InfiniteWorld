@@ -8,6 +8,8 @@ import { useWebSocket } from './hooks/useWebSocket';
 import { useEngineStatus } from './hooks/useEngineStatus';
 import { ArrowLeft, Send } from 'lucide-react';
 import { AILab } from './ai-lab';
+import Settings from './pages/Settings';
+import { AuthExpiredError, avatarUrl, getMe } from './components/profileApi';
 
 const AI_CHAT_ROOM = 'ai-deep-dive';
 
@@ -28,7 +30,11 @@ export default function App() {
 
   // Chain Security Lab room (runs in the browser, no server room needed)
   const [labOpen, setLabOpen] = useState(false);
-  const [aiOpen, setAiOpen] = useState(false)
+  const [aiOpen, setAiOpen] = useState(false);
+
+  // Profile & settings page, and the bits of the profile Home needs (the picture).
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [avatarVersion, setAvatarVersion] = useState(0);
 
   // Check localStorage on initial load
   useEffect(() => {
@@ -40,18 +46,48 @@ export default function App() {
     }
   }, []);
 
+  // Load the profile picture once signed in. A 401 means the saved token is stale.
+  useEffect(() => {
+    if (!token || !username) return;
+    let cancelled = false;
+    getMe(token)
+      .then((p) => {
+        if (!cancelled) setAvatarVersion(p.avatar_version);
+      })
+      .catch((err) => {
+        if (!cancelled && err instanceof AuthExpiredError) handleLogout();
+        // Any other failure (server down...) just leaves the initial-letter avatar.
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, username]);
+
   const { messages, sendMessage } = useWebSocket(selectedRoom);
   const engineStatus = useEngineStatus(Boolean(token && username));
 
   const handleLogout = () => {
     localStorage.removeItem('jwt_token');
     localStorage.removeItem('username');
+    localStorage.removeItem('jwt_expires_at');
     setToken(null);
     setUsername(null);
     setSelectedRoom(null);
     setLabOpen(false);
     setAiOpen(false);
+    setSettingsOpen(false);
+    setAvatarVersion(0);
     setPlayMode('off');
+  };
+
+  // The server issues a fresh token when the username changes.
+  const handleSessionChange = (newToken: string, newUser: string, expiresIn: number) => {
+    localStorage.setItem('jwt_token', newToken);
+    localStorage.setItem('username', newUser);
+    localStorage.setItem('jwt_expires_at', String(Date.now() + expiresIn * 1000));
+    setToken(newToken);
+    setUsername(newUser);
   };
 
   // 1. If not authenticated, show Login or Signup
@@ -77,6 +113,20 @@ export default function App() {
 
   // 2. Authenticated, no chat room open: Home, the lab, or the arcade
   if (!selectedRoom) {
+    if (settingsOpen) {
+      return (
+        <Settings
+          token={token}
+          username={username}
+          onBack={() => setSettingsOpen(false)}
+          onLogout={handleLogout}
+          onSessionChange={handleSessionChange}
+          onProfileChange={(patch) => {
+            if (patch.avatarVersion !== undefined) setAvatarVersion(patch.avatarVersion);
+          }}
+        />
+      );
+    }
     if (playMode === 'pick') {
       return (
         <>
@@ -120,6 +170,8 @@ export default function App() {
         onOpenPlay={() => setPlayMode('pick')}
         onSelectRoom={(id) => setSelectedRoom(id)}
         onLogout={handleLogout}
+        onOpenSettings={() => setSettingsOpen(true)}
+        avatarSrc={avatarUrl(username, avatarVersion)}
       />
     );
   }

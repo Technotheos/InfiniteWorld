@@ -2,11 +2,13 @@ import { useCallback, useRef, useState } from 'react';
 import { motion, useReducedMotion, type MotionProps } from 'framer-motion';
 import {
   ArrowUpRight, Brain, Bug, Compass, Gamepad2, Home as HomeIcon, LogOut, MessageSquare,
-  Network, ShieldAlert, TrendingUp, Zap, type LucideIcon,
+  Network, Settings as SettingsIcon, ShieldAlert, TrendingUp, Zap, type LucideIcon,
 } from 'lucide-react';
 import '../styles/celestial.css';
 import { Starfield, type StarfieldHandle } from '../components/Starfield';
 import { Sigil } from '../components/Sigil';
+import { Avatar } from '../components/Avatar';
+import { usePrefs } from '../hooks/usePrefs';
 import type { EngineStatus } from '../hooks/useEngineStatus';
 import { MAP_ORDER, MISSIONS, NODE_POS, loadProgress, rankFor, totalXp } from '../game/chain-lab';
 
@@ -25,6 +27,10 @@ interface HomeProps {
   /** Join a live chat room by id. */
   onSelectRoom: (roomId: string) => void;
   onLogout: () => void;
+  /** Open the profile & settings page. */
+  onOpenSettings: () => void;
+  /** The user's profile picture URL, if they have one. */
+  avatarSrc?: string | null;
   /** Pass the real engine state so the badge never lies. */
   engineStatus?: EngineStatus;
 }
@@ -203,6 +209,8 @@ export default function Home({
   onOpenPlay,
   onSelectRoom,
   onLogout,
+  onOpenSettings,
+  avatarSrc,
   engineStatus = 'connecting',
 }: HomeProps) {
   const displayName = username || 'Explorer';
@@ -211,6 +219,7 @@ export default function Home({
   const [warping, setWarping] = useState(false);
   const [done] = useState(loadProgress);
   const reduce = useReducedMotion();
+  const [prefs] = usePrefs();
   const status = STATUS_STYLES[engineStatus];
 
   const xp = totalXp(done);
@@ -222,6 +231,10 @@ export default function Home({
   const enter = useCallback(
     async (go: () => void) => {
       if (warping) return;
+      if (!prefs.warp) {
+        go();
+        return;
+      }
       setWarping(true);
       try {
         await starfield.current?.warp();
@@ -230,7 +243,7 @@ export default function Home({
         setWarping(false);
       }
     },
-    [warping],
+    [warping, prefs.warp],
   );
 
   const surprise = () => {
@@ -245,8 +258,8 @@ export default function Home({
   const navBtn = `w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-colors ${FOCUS}`;
 
   return (
-    <div className="iw-root relative min-h-screen flex overflow-hidden">
-      <Starfield ref={starfield} />
+    <div className={`iw-root relative min-h-screen flex overflow-hidden ${prefs.ambient ? '' : 'iw-calm'}`}>
+      {prefs.starfield && <Starfield ref={starfield} />}
 
       {/* Ambient nebula */}
       <div
@@ -300,16 +313,27 @@ export default function Home({
           </div>
         </div>
 
-        <div className="pt-4 border-t border-white/10 flex items-center justify-between">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-br from-[#e9b872]/25 to-[#9b8cff]/25 border border-[#e9b872]/40 flex items-center justify-center font-bold text-[#e9b872]">
-              {displayName.charAt(0).toUpperCase()}
-            </div>
+        <div className="pt-4 border-t border-white/10 flex items-center justify-between gap-1">
+          <button
+            onClick={onOpenSettings}
+            title="Profile & settings"
+            aria-label="Open profile and settings"
+            className={`flex items-center gap-3 min-w-0 flex-1 p-1.5 -m-1.5 rounded-2xl text-left hover:bg-white/5 transition-colors ${FOCUS}`}
+          >
+            <Avatar name={displayName} src={avatarSrc} size={40} />
             <div className="min-w-0">
               <div className="text-sm font-semibold text-[#eee9dc] capitalize truncate">{displayName}</div>
               <div className="text-xs text-[#a49fb0]">{rank.title}</div>
             </div>
-          </div>
+          </button>
+          <button
+            onClick={onOpenSettings}
+            title="Settings"
+            aria-label="Settings"
+            className={`p-2 text-[#a49fb0] hover:text-[#eee9dc] hover:bg-white/5 rounded-xl transition-colors ${FOCUS}`}
+          >
+            <SettingsIcon size={18} />
+          </button>
           <button
             onClick={onLogout}
             title="Logout"
@@ -327,7 +351,13 @@ export default function Home({
           {/* Identity */}
           <motion.header {...rise(0)} className="flex flex-wrap items-start justify-between gap-6">
             <div className="flex items-start gap-5">
-              <Sigil />
+              {avatarSrc ? (
+                <Sigil size={80}>
+                  <Avatar name={displayName} src={avatarSrc} size={58} />
+                </Sigil>
+              ) : (
+                <Sigil />
+              )}
               <div>
                 <p className="text-xs text-[#a49fb0]">
                   {rank.title} · {charted} of {MISSIONS.length} missions charted
@@ -361,6 +391,13 @@ export default function Home({
                   <div className={`font-semibold ${status.text}`}>{status.label}</div>
                 </div>
               </div>
+              <button
+                onClick={onOpenSettings}
+                aria-label="Profile and settings"
+                className={`md:hidden p-2.5 rounded-xl border border-white/10 text-[#a49fb0] hover:text-[#eee9dc] ${FOCUS}`}
+              >
+                <SettingsIcon size={18} />
+              </button>
               <button
                 onClick={onLogout}
                 aria-label="Log out"

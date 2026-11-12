@@ -24,7 +24,7 @@ import (
 //	pgStore      PostgreSQL (used when DATABASE_URL or POSTGRES_* is configured)
 //	memoryStore  the original in-process map (tests, or running without a DB)
 //
-// The rest of the server only calls Create / ByUsername / Exists.
+// The rest of the server only calls the methods on UserStore below.
 // ---------------------------------------------------------------------------
 
 var (
@@ -39,6 +39,17 @@ type UserStore interface {
 	ByUsername(ctx context.Context, username string) (User, bool, error)
 	// Exists reports whether a user with this username exists.
 	Exists(ctx context.Context, username string) (bool, error)
+
+	// Profile methods (implemented in store_profile.go).
+	Profile(ctx context.Context, username string) (Profile, error)
+	SetBio(ctx context.Context, username, bio string) error
+	SetAvatar(ctx context.Context, username string, jpeg []byte) error
+	RemoveAvatar(ctx context.Context, username string) error
+	Avatar(ctx context.Context, username string) (data []byte, updated time.Time, found bool, err error)
+	// Rename changes the username. It returns ErrUsernameTaken, or a
+	// *RenameTooSoonError when the cooldown has not passed.
+	Rename(ctx context.Context, oldName, newName string, cooldown time.Duration) error
+	SetPassword(ctx context.Context, username, passwordHash string) error
 	Close()
 }
 
