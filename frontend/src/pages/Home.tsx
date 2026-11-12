@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
+import { Logo } from '../components/Logo';
 import { motion, useReducedMotion, type MotionProps } from 'framer-motion';
 import {
   ArrowUpRight, Brain, Bug, Compass, Gamepad2, Home as HomeIcon, LogOut, MessageSquare,
@@ -284,7 +285,7 @@ export default function Home({
       >
         <div>
           <div className="flex items-center gap-2 mb-10">
-            <span className="text-xl" aria-hidden="true">🫍</span>
+            <Logo size={38} animated={prefs.ambient} />
             <h1 className="iw-display text-2xl font-medium tracking-wide text-[#e9b872]">Infinite World</h1>
           </div>
 

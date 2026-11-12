@@ -1,3 +1,4 @@
+import { Logo } from './Logo';
 import React, { useRef, useState } from 'react';
 import { ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Starfield, prefersReducedMotion, type StarfieldHandle } from './Starfield';
@@ -108,18 +109,8 @@ export const AuthShell: React.FC<AuthShellProps> = ({
           <div className="relative">
             {/* Logo with an orbiting satellite */}
             <div className="flex items-center gap-3 mb-6">
-              <div className="relative w-11 h-11 flex items-center justify-center">
-                <div className="absolute inset-0 rounded-full border border-sky-500/20" />
-                <div
-                  className="lb-anim absolute inset-0"
-                  style={{ animation: 'lb-orbit 8s linear infinite' }}
-                  aria-hidden="true"
-                >
-                  <span className="absolute left-1/2 -top-[3px] -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-sky-300 shadow-[0_0_8px_2px_rgba(125,211,252,0.8)]" />
-                </div>
-                <span className="text-xl" aria-hidden="true">🫍</span>
-              </div>
-              <span className="text-lg font-bold tracking-wider text-sky-400">InfiniteWorld</span>
+              <Logo size={46} animated />
+              <span className="text-lg font-bold tracking-wider text-[#e9b872]">InfiniteWorld</span>
             </div>
 
             <div className="mb-7">

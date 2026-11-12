@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { Logo } from '../components/Logo';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { ArrowLeft, Camera, Check, LogOut } from 'lucide-react';
 import '../styles/celestial.css';
@@ -595,7 +596,9 @@ export default function Settings({ token, username, onBack, onLogout, onSessionC
           </Section>
         </motion.div>
 
-        <p className="pb-6 text-center text-xs text-[#6f6a7c]">Infinite World</p>
+        <div className="flex items-center justify-center gap-2 pb-6 text-xs text-[#6f6a7c]">
+            <Logo size={22} /> Infinite World
+        </div>
       </main>
 
       {cropFile && (
