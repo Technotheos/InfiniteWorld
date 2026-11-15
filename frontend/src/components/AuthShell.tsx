@@ -107,7 +107,7 @@ export const AuthShell: React.FC<AuthShellProps> = ({
           />
 
           <div className="relative">
-            {/* Logo with an orbiting satellite */}
+            {/* Logo */}
             <div className="flex items-center gap-3 mb-6">
               <Logo size={46} animated />
               <span className="text-lg font-bold tracking-wider text-[#e9b872]">InfiniteWorld</span>

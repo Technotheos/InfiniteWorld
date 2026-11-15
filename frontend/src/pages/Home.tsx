@@ -349,6 +349,10 @@ export default function Home({
       {/* Main */}
       <main className={`relative z-10 flex-1 min-w-0 overflow-y-auto ${fade}`}>
         <div className="mx-auto max-w-6xl px-5 sm:px-10 py-8 space-y-10">
+          <div className="md:hidden flex items-center gap-2.5">
+            <Logo size={30} animated={prefs.ambient} />
+            <span className="iw-display text-xl text-[#e9b872]">Infinite World</span>
+          </div>
           {/* Identity */}
           <motion.header {...rise(0)} className="flex flex-wrap items-start justify-between gap-6">
             <div className="flex items-start gap-5">
