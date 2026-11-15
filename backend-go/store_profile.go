@@ -239,9 +239,7 @@ func (s *pgStore) Rename(ctx context.Context, oldName, newName string, cooldown 
 	}
 
 	// Forget the cached "old name exists" answer so old tokens stop working now.
-	s.cacheMu.Lock()
-	delete(s.cache, oldName)
-	s.cacheMu.Unlock()
+	s.invalidate(oldName, newName)
 	return nil
 }
 

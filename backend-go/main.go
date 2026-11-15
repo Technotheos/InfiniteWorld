@@ -26,6 +26,18 @@ func main() {
 	cancelInit()
 	defer store.Close()
 
+	// Console commands (never reachable over HTTP):
+	//   go run . promote <username>   make an admin
+	//   go run . demote  <username>   remove admin (refuses to remove the last one)
+	if len(os.Args) > 1 {
+		cliCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		if err := runCLI(cliCtx, os.Args[1:]); err != nil {
+			log.Fatalf("%v", err)
+		}
+		return
+	}
+
 	manager := NewManager()
 	hub, err := NewGameHub()
 	if err != nil {
@@ -34,6 +46,17 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/signup", RegisterHandler)
 	mux.HandleFunc("/api/login", LoginHandler)
+	mux.HandleFunc("/api/auth/refresh", RefreshHandler)
+	mux.HandleFunc("/api/auth/logout", LogoutHandler)
+	mux.HandleFunc("/api/auth/logout-all", LogoutAllHandler)
+	mux.HandleFunc("/api/auth/sessions", SessionsHandler)
+	mux.HandleFunc("/api/auth/sessions/revoke", SessionRevokeHandler)
+	mux.HandleFunc("/api/admin/users", AdminUsersHandler)
+	mux.HandleFunc("/api/admin/users/role", AdminRoleHandler)
+	mux.HandleFunc("/api/admin/users/disable", AdminDisableHandler)
+	mux.HandleFunc("/api/admin/users/enable", AdminEnableHandler)
+	mux.HandleFunc("/api/admin/users/revoke", AdminRevokeHandler)
+	mux.HandleFunc("/api/admin/audit", AdminAuditHandler)
 	mux.HandleFunc("/api/me", MeHandler)
 	mux.HandleFunc("/api/me/profile", BioHandler)
 	mux.HandleFunc("/api/me/avatar", AvatarUploadHandler)
@@ -62,6 +85,7 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	go sessionJanitor(ctx)
 
 	go func() {
 		certFile, keyFile := os.Getenv("TLS_CERT_FILE"), os.Getenv("TLS_KEY_FILE")

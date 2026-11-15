@@ -225,6 +225,22 @@ func (c *gameClient) readPump() {
 		if json.Unmarshal(raw, &msg) != nil || msg.Type == "" || len(msg.Type) > 16 {
 			continue
 		}
+		// In-band token renewal (see renewSocketAuth). Not passed to the room.
+		if msg.Type == "reauth" {
+			var tok string
+			if json.Unmarshal(msg.Payload, &tok) == nil {
+				if exp, ok := renewSocketAuth(tok, c.name); ok {
+					if c.expiry != nil {
+						c.expiry.Reset(time.Until(exp))
+					}
+					continue
+				}
+			}
+			c.conn.WriteControl(websocket.CloseMessage,
+				websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "token expired"),
+				time.Now().Add(writeWait))
+			return
+		}
 		c.room.submit(roomEvent{kind: evMsg, c: c, msg: msg})
 	}
 }
@@ -270,7 +286,7 @@ func (h *GameHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	if !userExists(r.Context(), claims.Username) {
+	if _, ok := checkClaims(r.Context(), claims); !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}

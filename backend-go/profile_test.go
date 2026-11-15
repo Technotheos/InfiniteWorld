@@ -21,7 +21,9 @@ func profileSetup(t *testing.T) {
 	t.Helper()
 	setupAuth(t)
 	limiter = newRateLimiter(10000, time.Minute) // other tests share the fake client IP
+	apiLimiter = newRateLimiter(10000, time.Minute)
 	lockout = newLoginTracker()
+	lockoutUser = newLoginTrackerN(30)
 }
 
 // userWithPassword inserts a user whose password is known.

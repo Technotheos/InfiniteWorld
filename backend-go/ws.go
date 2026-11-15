@@ -15,17 +15,18 @@ import (
 )
 
 const (
-	writeWait         = 10 * time.Second
-	pongWait          = 60 * time.Second
-	pingPeriod        = pongWait * 9 / 10
-	maxMessageSize    = 4096 // bytes per incoming frame
-	sendBufferSize    = 64
-	maxRooms          = 1000
-	maxClientsPerRoom = 100
-	maxConnsPerUser   = 5
-	maxActionLen      = 32
-	msgRatePerSec     = 5.0
-	msgBurst          = 10.0
+	writeWait           = 10 * time.Second
+	pongWait            = 60 * time.Second
+	pingPeriod          = pongWait * 9 / 10
+	maxMessageSize      = 4096 // bytes per incoming frame
+	maxChatContentRunes = 1000 // visible characters per chat message
+	sendBufferSize      = 64
+	maxRooms            = 1000
+	maxClientsPerRoom   = 100
+	maxConnsPerUser     = 5
+	maxActionLen        = 32
+	msgRatePerSec       = 5.0
+	msgBurst            = 10.0
 )
 
 var (
@@ -46,13 +47,7 @@ var upgrader = websocket.Upgrader{
 
 // checkOrigin blocks cross-site WebSocket hijacking. Browsers always send
 // Origin; non-browser clients (CLI, mobile) don't, and still must present a JWT.
-func checkOrigin(r *http.Request) bool {
-	origin := r.Header.Get("Origin")
-	if origin == "" {
-		return true
-	}
-	return allowedOrigins[origin]
-}
+func checkOrigin(r *http.Request) bool { return originAllowed(r) }
 
 // canJoinRoom is the hook for room-level authorization (membership, invites,
 // ownership...). Right now any authenticated user may join any valid room.
@@ -150,9 +145,27 @@ func (c *Client) readPump(m *Manager) {
 			continue
 		}
 
-		// Never trust client-supplied identity or room.
+		// In-band token renewal (see renewSocketAuth). Not relayed to anyone.
+		if msg.Action == "reauth" {
+			if exp, ok := renewSocketAuth(msg.Content, c.username); ok {
+				if c.expiry != nil {
+					c.expiry.Reset(time.Until(exp))
+				}
+				continue
+			}
+			c.conn.WriteControl(
+				websocket.CloseMessage,
+				websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "token expired"),
+				time.Now().Add(writeWait),
+			)
+			return
+		}
+
+		// Never trust client-supplied identity or room, and never relay
+		// control / bidi / zero-width characters to other users.
 		msg.RoomID = c.room.ID
 		msg.Sender = c.username
+		msg.Content = stripText(msg.Content, maxChatContentRunes, true)
 
 		outbound, err := json.Marshal(msg)
 		if err != nil {
@@ -338,7 +351,7 @@ func (m *Manager) HandleWS(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	if !userExists(r.Context(), claims.Username) {
+	if _, ok := checkClaims(r.Context(), claims); !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}

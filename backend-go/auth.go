@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net"
 	"net/http"
 	"net/mail"
 	"os"
@@ -47,9 +46,32 @@ var (
 
 	usernameRe = regexp.MustCompile(`^[A-Za-z0-9_.-]{3,32}$`)
 
-	limiter = newRateLimiter(30, time.Minute) // per-IP: 30 auth requests/minute
-	lockout = newLoginTracker()
+	// Two budgets per IP. `limiter` guards the endpoints an attacker would hammer
+	// (login, signup, refresh): 30/minute. `apiLimiter` covers requests that
+	// already carry a valid login, which are far less abusable and must not break
+	// people sharing an address (an office, a school, a phone hotspot): 300/minute.
+	limiter    = newRateLimiter(30, time.Minute)
+	apiLimiter = newRateLimiter(300, time.Minute)
+	// Lockout is keyed by username+IP, so a stranger cannot lock YOU out by
+	// failing from their own address. lockoutUser is the per-username ceiling
+	// (a distributed guessing attack) and is much higher.
+	lockout     = newLoginTracker()
+	lockoutUser = newLoginTrackerN(30)
 )
+
+func loginLocked(username, ip string) bool {
+	return lockout.isLocked(username+"|"+ip) || lockoutUser.isLocked(username)
+}
+
+func loginFailed(username, ip string) {
+	lockout.fail(username + "|" + ip)
+	lockoutUser.fail(username)
+}
+
+func loginSucceeded(username, ip string) {
+	lockout.reset(username + "|" + ip)
+	lockoutUser.reset(username)
+}
 
 type User struct {
 	ID        string    `json:"id"`
@@ -57,6 +79,12 @@ type User struct {
 	Email     string    `json:"email"`
 	Password  string    `json:"-"`
 	CreatedAt time.Time `json:"created_at"`
+
+	// IAM fields (see iam.go). Role "" is treated as "user".
+	Role           Role      `json:"-"`
+	DisabledAt     time.Time `json:"-"`
+	DisabledReason string    `json:"-"`
+	TokenVersion   int       `json:"-"`
 
 	// Profile fields (see profile.go). Avatar bytes are never put in JSON.
 	Bio               string    `json:"-"`
@@ -67,6 +95,10 @@ type User struct {
 
 type Claims struct {
 	Username string `json:"username"`
+	// TV is the user's token_version when this token was issued. Bumping the
+	// user's version ("log out everywhere", password change, disable) makes
+	// every older access token fail immediately.
+	TV int `json:"tv"`
 	jwt.RegisteredClaims
 }
 
@@ -85,10 +117,16 @@ func InitAuth() error {
 	}
 	jwtKey = []byte(secret)
 
-	for _, o := range strings.Split(os.Getenv("ALLOWED_ORIGINS"), ",") {
-		if o = strings.TrimSpace(o); o != "" {
-			allowedOrigins[o] = true
-		}
+	origins, err := parseAllowedOrigins(os.Getenv("ALLOWED_ORIGINS"))
+	if err != nil {
+		return err
+	}
+	allowedOrigins = origins
+	if err := initNetPolicy(); err != nil {
+		return err
+	}
+	if err := initSessions(); err != nil {
+		return err
 	}
 
 	randomPw := make([]byte, 16)
@@ -124,7 +162,9 @@ func newID() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-func GenerateJWT(user User) (string, error) {
+func GenerateJWT(user User) (string, error) { return generateJWTWithTTL(user, tokenTTL) }
+
+func generateJWTWithTTL(user User, ttl time.Duration) (string, error) {
 	jti, err := newID()
 	if err != nil {
 		return "", err
@@ -132,6 +172,7 @@ func GenerateJWT(user User) (string, error) {
 	now := time.Now()
 	claims := &Claims{
 		Username: user.Username,
+		TV:       user.TokenVersion,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ID:        jti,
 			Subject:   user.ID,
@@ -139,7 +180,7 @@ func GenerateJWT(user User) (string, error) {
 			Audience:  jwt.ClaimStrings{jwtAudience},
 			IssuedAt:  jwt.NewNumericDate(now),
 			NotBefore: jwt.NewNumericDate(now),
-			ExpiresAt: jwt.NewNumericDate(now.Add(tokenTTL)),
+			ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
 		},
 	}
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(jwtKey)
@@ -174,7 +215,7 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 // AuthMiddlewareLimit is AuthMiddleware with a custom request-body cap
 // (used by the avatar upload, which is larger than an auth form).
 func AuthMiddlewareLimit(limit int64, next http.HandlerFunc) http.HandlerFunc {
-	return withSecurityLimit("", limit, func(w http.ResponseWriter, r *http.Request) {
+	return withSecurityPolicy("", limit, true, func(w http.ResponseWriter, r *http.Request) {
 		const prefix = "Bearer "
 		h := r.Header.Get("Authorization")
 		if !strings.HasPrefix(h, prefix) {
@@ -186,11 +227,14 @@ func AuthMiddlewareLimit(limit int64, next http.HandlerFunc) http.HandlerFunc {
 			writeError(w, http.StatusUnauthorized, "Unauthorized")
 			return
 		}
-		if !userExists(r.Context(), claims.Username) {
+		info, ok := checkClaims(r.Context(), claims)
+		if !ok {
 			writeError(w, http.StatusUnauthorized, "Unauthorized")
 			return
 		}
-		next(w, r.WithContext(context.WithValue(r.Context(), usernameCtxKey, claims.Username)))
+		ctx := context.WithValue(r.Context(), usernameCtxKey, claims.Username)
+		ctx = context.WithValue(ctx, authInfoCtxKey, info)
+		next(w, r.WithContext(ctx))
 	})
 }
 
@@ -218,8 +262,9 @@ func setSecurityHeaders(w http.ResponseWriter) {
 func applyCORS(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Vary", "Origin")
 	origin := r.Header.Get("Origin")
-	if origin != "" && allowedOrigins[origin] {
+	if origin != "" && originListed(r, origin) {
 		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Set("Access-Control-Allow-Credentials", "true") // needed for the refresh cookie
 		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		w.Header().Set("Access-Control-Max-Age", "600")
@@ -233,12 +278,28 @@ func withSecurity(method string, h http.HandlerFunc) http.HandlerFunc {
 
 // withSecurityLimit is withSecurity with an explicit request-body cap.
 func withSecurityLimit(method string, limit int64, h http.HandlerFunc) http.HandlerFunc {
+	return withSecurityPolicy(method, limit, false, h)
+}
+
+// withSecurityPolicy is the shared wrapper. authed selects the generous
+// rate-limit budget for routes that sit behind AuthMiddleware.
+func withSecurityPolicy(method string, limit int64, authed bool, h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		setSecurityHeaders(w)
 		applyCORS(w, r)
 
 		if r.Method == http.MethodOptions {
+			if !originAllowed(r) {
+				writeError(w, http.StatusForbidden, "Origin not allowed")
+				return
+			}
 			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		// CSRF defence in depth: a state-changing request that names a foreign
+		// origin is refused even if the browser would have let it through.
+		if isStateChanging(r.Method) && !originAllowed(r) {
+			writeError(w, http.StatusForbidden, "Origin not allowed")
 			return
 		}
 		if method != "" && r.Method != method {
@@ -246,7 +307,11 @@ func withSecurityLimit(method string, limit int64, h http.HandlerFunc) http.Hand
 			writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
 			return
 		}
-		if !limiter.allow(clientIP(r)) {
+		lm := limiter
+		if authed {
+			lm = apiLimiter
+		}
+		if !lm.allow(clientIP(r)) {
 			w.Header().Set("Retry-After", "60")
 			writeError(w, http.StatusTooManyRequests, "Too many requests")
 			return
@@ -254,16 +319,6 @@ func withSecurityLimit(method string, limit int64, h http.HandlerFunc) http.Hand
 		r.Body = http.MaxBytesReader(w, r.Body, limit)
 		h(w, r)
 	}
-}
-
-// clientIP deliberately ignores X-Forwarded-For (spoofable). If you sit behind
-// a trusted reverse proxy, configure that proxy to set RemoteAddr/real IP instead.
-func clientIP(r *http.Request) string {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
 }
 
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
@@ -326,11 +381,16 @@ type loginState struct {
 }
 
 type loginTracker struct {
-	mu sync.Mutex
-	m  map[string]*loginState
+	mu  sync.Mutex
+	m   map[string]*loginState
+	max int
 }
 
-func newLoginTracker() *loginTracker { return &loginTracker{m: make(map[string]*loginState)} }
+func newLoginTracker() *loginTracker { return newLoginTrackerN(maxFailedLogins) }
+
+func newLoginTrackerN(max int) *loginTracker {
+	return &loginTracker{m: make(map[string]*loginState), max: max}
+}
 
 func (t *loginTracker) isLocked(username string) bool {
 	t.mu.Lock()
@@ -361,7 +421,7 @@ func (t *loginTracker) fail(username string) {
 		s.failures, s.lockedUntil = 0, time.Time{}
 	}
 	s.failures++
-	if s.failures >= maxFailedLogins {
+	if s.failures >= t.max {
 		s.lockedUntil = time.Now().Add(lockoutDuration)
 	}
 }
@@ -449,6 +509,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	auditOK(r, "auth.signup", username, nil)
 	writeJSON(w, http.StatusCreated, map[string]string{"message": "User registered successfully"})
 }
 
@@ -456,7 +517,9 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	username := normalizeUsername(r.PostFormValue("username"))
 	password := r.PostFormValue("password")
 
-	if lockout.isLocked(username) {
+	ip := clientIP(r)
+	if loginLocked(username, ip) {
+		audit(r, AuditEvent{Action: "auth.login_locked", Target: auditName(username), Success: false})
 		w.Header().Set("Retry-After", fmt.Sprint(int(lockoutDuration.Seconds())))
 		writeError(w, http.StatusTooManyRequests, "Too many failed attempts, try again later")
 		return
@@ -478,21 +541,34 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	passwordOK := CheckPasswordHash(password, hash)
 
 	if !exists || !passwordOK {
-		lockout.fail(username)
+		loginFailed(username, ip)
+		audit(r, AuditEvent{Action: "auth.login", Target: auditName(username), Success: false})
 		writeError(w, http.StatusUnauthorized, "Invalid username or password")
 		return
 	}
-	lockout.reset(username)
+	if !user.DisabledAt.IsZero() { // only revealed to someone who knew the password
+		audit(r, AuditEvent{Actor: user.Username, Action: "auth.login", Success: false,
+			Detail: map[string]any{"reason": "account disabled"}})
+		writeError(w, http.StatusForbidden, "This account has been disabled")
+		return
+	}
+	loginSucceeded(username, ip)
 
-	tokenString, err := GenerateJWT(user)
+	tokenString, err := startSession(w, r, user)
 	if err != nil {
+		log.Printf("login: start session: %v", err)
 		writeError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
+	audit(r, AuditEvent{Actor: user.Username, Action: "auth.login", Success: true})
+	writeJSON(w, http.StatusOK, tokenResponse(tokenString, user))
+}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"token":      tokenString,
-		"username":   user.Username,
-		"expires_in": int(tokenTTL.Seconds()),
-	})
+// auditName makes a username safe to put in the log: failed logins sometimes
+// carry a password typed into the username box, which must never be stored.
+func auditName(username string) string {
+	if usernameRe.MatchString(username) {
+		return username
+	}
+	return "(invalid)"
 }

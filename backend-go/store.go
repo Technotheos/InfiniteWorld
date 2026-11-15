@@ -50,6 +50,22 @@ type UserStore interface {
 	// *RenameTooSoonError when the cooldown has not passed.
 	Rename(ctx context.Context, oldName, newName string, cooldown time.Duration) error
 	SetPassword(ctx context.Context, username, passwordHash string) error
+
+	// IAM, sessions and audit (implemented in store_iam.go).
+	AuthState(ctx context.Context, username string) (AuthInfo, bool, error)
+	ListUsers(ctx context.Context, prefix, after string, limit int) ([]AdminUser, error)
+	SetRole(ctx context.Context, username string, role Role) error
+	SetDisabled(ctx context.Context, username string, disabled bool, reason string) error
+	CountAdmins(ctx context.Context) (int, error)
+	RevokeAllSessions(ctx context.Context, username string) error
+	CreateSession(ctx context.Context, s NewSession) error
+	RotateSession(ctx context.Context, oldHash, newHash []byte, newExpires time.Time, userAgent, ip string) (RotateResult, error)
+	RevokeSessionByHash(ctx context.Context, hash []byte) (username string, ok bool, err error)
+	RevokeFamily(ctx context.Context, username, familyID string) (bool, error)
+	ListSessions(ctx context.Context, username string, currentHash []byte) ([]SessionInfo, error)
+	PurgeSessions(ctx context.Context) error
+	AuditWrite(ctx context.Context, e AuditEvent) error
+	AuditList(ctx context.Context, f AuditFilter) ([]AuditEvent, error)
 	Close()
 }
 
@@ -79,7 +95,7 @@ func (memoryStore) Create(_ context.Context, username, email, hash string) (User
 			}
 		}
 	}
-	u := User{ID: id, Username: username, Email: email, Password: hash, CreatedAt: time.Now()}
+	u := User{ID: id, Username: username, Email: email, Password: hash, CreatedAt: time.Now(), Role: RoleUser}
 	users[username] = u
 	return u, nil
 }
@@ -110,8 +126,9 @@ type pgStore struct {
 	// Small positive cache for Exists(): the JWT middleware, the REST API and
 	// every WebSocket upgrade ask "does this user still exist?". Caching a
 	// "yes" for a short time keeps that off the database.
-	cacheMu sync.Mutex
-	cache   map[string]time.Time // username -> cached until
+	cacheMu   sync.Mutex
+	cache     map[string]time.Time // username -> cached until
+	authCache map[string]authEntry // username -> role/disabled/token version (short TTL)
 }
 
 const existsCacheTTL = 30 * time.Second
@@ -155,7 +172,7 @@ func newPGStore(ctx context.Context, dsn string) (*pgStore, error) {
 		pool.Close()
 		return nil, errors.New(`table "users" not found: run the migrations first (docker compose run --rm migrate)`)
 	}
-	return &pgStore{pool: pool, cache: make(map[string]time.Time)}, nil
+	return &pgStore{pool: pool, cache: make(map[string]time.Time), authCache: make(map[string]authEntry)}, nil
 }
 
 func (s *pgStore) Create(ctx context.Context, username, email, hash string) (User, error) {
@@ -184,7 +201,7 @@ func (s *pgStore) Create(ctx context.Context, username, email, hash string) (Use
 		}
 		return User{}, err
 	}
-	u.Username, u.Email, u.Password = username, email, hash
+	u.Username, u.Email, u.Password, u.Role = username, email, hash, RoleUser
 	return u, nil
 }
 
@@ -194,10 +211,12 @@ func (s *pgStore) ByUsername(ctx context.Context, username string) (User, bool, 
 
 	var u User
 	var email *string
+	var role string
+	var disabledAt *time.Time
 	err := s.pool.QueryRow(ctx,
-		`SELECT id::text, username, email, password_hash, created_at
+		`SELECT id::text, username, email, password_hash, created_at, role, disabled_at, token_version
 		   FROM users WHERE username = $1`, username,
-	).Scan(&u.ID, &u.Username, &email, &u.Password, &u.CreatedAt)
+	).Scan(&u.ID, &u.Username, &email, &u.Password, &u.CreatedAt, &role, &disabledAt, &u.TokenVersion)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return User{}, false, nil
 	}
@@ -206,6 +225,10 @@ func (s *pgStore) ByUsername(ctx context.Context, username string) (User, bool, 
 	}
 	if email != nil {
 		u.Email = *email
+	}
+	u.Role = Role(role).norm()
+	if disabledAt != nil {
+		u.DisabledAt = *disabledAt
 	}
 	return u, true, nil
 }

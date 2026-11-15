@@ -345,6 +345,8 @@ func cleanChat(s string) string {
 	for _, ch := range strings.TrimSpace(s) {
 		if unicode.IsControl(ch) {
 			ch = ' '
+		} else if isUnsafeRune(ch, false) {
+			continue // bidi overrides, zero-width characters...
 		}
 		b.WriteRune(ch)
 		if n++; n >= maxChatRunes {

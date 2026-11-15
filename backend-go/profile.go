@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 	"unicode/utf8"
 )
 
@@ -76,7 +75,10 @@ func meHandler(w http.ResponseWriter, r *http.Request) {
 		storeUnavailable(w, "profile", err)
 		return
 	}
+	info := AuthFrom(r)
 	out := map[string]interface{}{
+		"role":           string(info.Role),
+		"permissions":    info.Role.Permissions(),
 		"username":       p.Username,
 		"bio":            p.Bio,
 		"created_at":     p.CreatedAt,
@@ -103,10 +105,8 @@ func validateBio(s string) (string, error) {
 	if utf8.RuneCountInString(s) > maxBioRunes {
 		return "", fmt.Errorf("bio must be at most %d characters", maxBioRunes)
 	}
-	for _, c := range s {
-		if c != '\n' && unicode.IsControl(c) {
-			return "", errors.New("bio contains invalid characters")
-		}
+	if hasUnsafeText(s, true) { // control codes, bidi overrides, zero-width characters
+		return "", errors.New("bio contains invalid characters")
 	}
 	// Keep it a short blurb: at most two line breaks.
 	if strings.Count(s, "\n") > 2 {
@@ -253,7 +253,8 @@ func publicAvatarHandler(w http.ResponseWriter, r *http.Request) {
 // verifyPassword checks the signed-in user's password, sharing the login
 // lockout so this endpoint cannot be used to guess it.
 func verifyPassword(w http.ResponseWriter, r *http.Request, username, password string) bool {
-	if lockout.isLocked(username) {
+	ip := clientIP(r)
+	if loginLocked(username, ip) {
 		w.Header().Set("Retry-After", strconv.Itoa(int(lockoutDuration.Seconds())))
 		writeError(w, http.StatusTooManyRequests, "Too many failed attempts, try again later")
 		return false
@@ -269,11 +270,13 @@ func verifyPassword(w http.ResponseWriter, r *http.Request, username, password s
 		return false
 	}
 	if !CheckPasswordHash(password, u.Password) {
-		lockout.fail(username)
+		loginFailed(username, ip)
+		audit(r, AuditEvent{Actor: username, Action: "auth.reauth_failed", Success: false,
+			Detail: map[string]any{"path": r.URL.Path}})
 		writeError(w, http.StatusForbidden, "Incorrect password")
 		return false
 	}
-	lockout.reset(username)
+	loginSucceeded(username, ip)
 	return true
 }
 
@@ -323,11 +326,9 @@ func usernameHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "Username changed, please log in again")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"token":      token,
-		"username":   user.Username,
-		"expires_in": int(tokenTTL.Seconds()),
-	})
+	audit(r, AuditEvent{Actor: next, Action: "profile.username_change", Target: next, Success: true,
+		Detail: map[string]any{"from": current}})
+	writeJSON(w, http.StatusOK, tokenResponse(token, user))
 }
 
 // ---- POST /api/me/password --------------------------------------------------
@@ -360,5 +361,24 @@ func passwordHandler(w http.ResponseWriter, r *http.Request) {
 		storeUnavailable(w, "set password", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"message": "Password updated"})
+	// A new password must end every other login (someone may have been using
+	// the old one). Then give THIS device a fresh session so it stays signed in.
+	if err := userStore().RevokeAllSessions(r.Context(), username); err != nil {
+		storeUnavailable(w, "revoke sessions", err)
+		return
+	}
+	user, ok, err := userStore().ByUsername(r.Context(), username)
+	if err != nil || !ok {
+		writeError(w, http.StatusInternalServerError, "Password updated, please log in again")
+		return
+	}
+	token, err := startSession(w, r, user)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Password updated, please log in again")
+		return
+	}
+	auditOK(r, "auth.password_change", username, map[string]any{"other_sessions_revoked": true})
+	resp := tokenResponse(token, user)
+	resp["message"] = "Password updated"
+	writeJSON(w, http.StatusOK, resp)
 }
