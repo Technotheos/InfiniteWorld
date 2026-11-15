@@ -3,6 +3,10 @@
 export const API_URL: string =
   (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:8080';
 
+/** Base URL for WebSockets: VITE_WS_URL, else the API address with ws:// or wss://. */
+export const WS_URL: string =
+  (import.meta as any).env?.VITE_WS_URL ?? API_URL.replace(/^http/, 'ws');
+
 /**
  * Turns a failed response into a user-friendly message.
  * The backend returns {"error": "..."}; fall back to status-based text

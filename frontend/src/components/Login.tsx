@@ -3,6 +3,7 @@ import { Lock, User } from 'lucide-react';
 import { API_URL, readError, isNetworkError } from './authApi';
 import { AuthShell, ErrorBanner, Field, LinkButton, SubmitButton } from './AuthShell';
 import type { StarfieldHandle } from './Starfield';
+import { setSession } from '../session';
 
 interface LoginProps {
   onLoginSuccess: (token: string, username: string) => void;
@@ -28,6 +29,8 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onSwitchToSignup }
 
       const response = await fetch(`${API_URL}/api/login`, {
         method: 'POST',
+        // "include" lets the browser keep the HttpOnly refresh cookie the server sets.
+        credentials: 'include',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body,
       });
@@ -41,13 +44,6 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onSwitchToSignup }
         throw new Error('Unexpected response from the server.');
       }
 
-      localStorage.setItem('jwt_token', data.token);
-      localStorage.setItem('username', data.username);
-      // Lets the app log the user out cleanly when the short-lived token expires.
-      if (typeof data.expires_in === 'number') {
-        localStorage.setItem('jwt_expires_at', String(Date.now() + data.expires_in * 1000));
-      }
-
       // Hyperspace jump into the app (capped so a stuck animation can never block login).
       setWarping(true);
       await Promise.race([
@@ -55,6 +51,9 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onSwitchToSignup }
         new Promise((resolve) => setTimeout(resolve, 1500)),
       ]);
 
+      // The token is kept in memory only (never localStorage). Setting it swaps
+      // this screen for the app, so it happens after the animation.
+      setSession(data.token, data.username, typeof data.expires_in === 'number' ? data.expires_in : 900);
       onLoginSuccess(data.token, data.username);
     } catch (err) {
       setWarping(false);

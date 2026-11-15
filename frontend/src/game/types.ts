@@ -140,7 +140,7 @@ export interface Hello {
   chat: ChatMsg[] | null;
 }
 
-export type ClientMsgType = "ready" | "start" | "chat" | "act" | "rematch";
+export type ClientMsgType = "ready" | "start" | "chat" | "act" | "rematch" | "reauth";
 export type SendFn = (type: ClientMsgType, payload?: unknown) => void;
 
 export interface MissionProps<P, Q = unknown> {

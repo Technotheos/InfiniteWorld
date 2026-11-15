@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { WS_URL } from '../components/authApi';
+import { getSession, getToken, refreshSession, subscribe } from '../session';
 
 /** Pass `null` while no room is open: no socket is created until there is a room. */
 export const useWebSocket = (roomId: string | null) => {
@@ -7,56 +9,76 @@ export const useWebSocket = (roomId: string | null) => {
 
   useEffect(() => {
     if (!roomId) return;
-
-    // 1. Grab the JWT token stored during login
-    const token = localStorage.getItem('jwt_token');
-    if (!token) {
-      console.error('No JWT token found. Please log in first.');
+    if (!getToken()) {
+      console.error('No session. Please log in first.');
       return;
     }
 
     setMessages([]); // each room starts with a clean history
 
-    // 2. Connect to Go backend passing the token and room_id
-    const wsUrl = `ws://localhost:8080/ws?token=${token}&room_id=${roomId}`;
-    console.log("🔥 ACTUAL WEBSOCKET URL BEING CALLED:", wsUrl)
-    const ws = new WebSocket(wsUrl);
-    socketRef.current = ws;
+    let stopped = false;
+    let retriedAfterExpiry = false;
 
-    ws.onopen = () => {
-      console.log('Connected to WebSocket room:', roomId);
+    const connect = () => {
+      const token = getToken();
+      if (!token) return;
+      // The token travels as a WebSocket subprotocol, never in the URL: URLs end
+      // up in server logs, proxies and browser history (matches ws.go).
+      const ws = new WebSocket(`${WS_URL}/ws?room_id=${encodeURIComponent(roomId)}`, ['bearer', token]);
+      socketRef.current = ws;
+
+      // Every successful connection re-arms the one-shot expiry retry, so the
+      // NEXT 15-minute expiry is handled too, not only the first.
+      ws.onopen = () => {
+        retriedAfterExpiry = false;
+      };
+
+      ws.onmessage = (event) => {
+        let data: unknown;
+        try {
+          data = JSON.parse(event.data);
+        } catch {
+          return;
+        }
+        setMessages((prev) => [...prev, data]);
+      };
+
+      ws.onclose = async (ev) => {
+        if (socketRef.current === ws) socketRef.current = null;
+        if (stopped) return;
+        // The server closes the socket when the 15-minute access token ends.
+        // Refresh the session and rejoin once, instead of dropping the user.
+        if (ev.code === 1008 && !retriedAfterExpiry && (await refreshSession())) {
+          retriedAfterExpiry = true;
+          connect();
+        }
+      };
     };
 
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      setMessages((prev) => [...prev, data]);
-    };
+    connect();
 
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
-
-    ws.onclose = () => {
-      console.log('WebSocket disconnected');
-    };
+    // Renew the socket's login in-band whenever the session refreshes, so the
+    // chat is not cut when the 15-minute token ends.
+    const unsubscribe = subscribe((s) => {
+      const ws = socketRef.current;
+      if (s && ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ action: 'reauth', content: s.token }));
+    });
 
     return () => {
-      ws.close();
+      unsubscribe();
+      stopped = true;
+      socketRef.current?.close();
+      socketRef.current = null;
     };
   }, [roomId]);
 
   const sendMessage = (content: string, action = 'chat') => {
-    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-      const payload = {action, content};
-      socketRef.current.send(JSON.stringify(payload));
-
-      const currentUsername = localStorage.getItem('username') || 'Nta';
-      setMessages((prev) => [
-        ...prev,
-        { sender: currentUsername, content: content }
-      ]);
+    const ws = socketRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ action, content }));
+      setMessages((prev) => [...prev, { sender: getSession()?.username ?? 'me', content }]);
     } else {
-      console.error('❌hmm, this message faced an error, try to shut down your network and go for a walk')
+      console.error('Message not sent: the connection is not open.');
     }
   };
 

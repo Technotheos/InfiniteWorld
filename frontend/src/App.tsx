@@ -9,7 +9,10 @@ import { useEngineStatus } from './hooks/useEngineStatus';
 import { ArrowLeft, Send } from 'lucide-react';
 import { AILab } from './ai-lab';
 import Settings from './pages/Settings';
+import Admin from './pages/Admin';
+import { Logo } from './components/Logo';
 import { AuthExpiredError, avatarUrl, getMe } from './components/profileApi';
+import { clearSession, getSession, logoutRemote, refreshSession, setSession, subscribe, type Session } from './session';
 
 const AI_CHAT_ROOM = 'ai-deep-dive';
 
@@ -17,8 +20,12 @@ const AI_CHAT_ROOM = 'ai-deep-dive';
 const LAB_CHAT_ROOM = 'zeroday-websec';
 
 export default function App() {
-  const [token, setToken] = useState<string | null>(null);
-  const [username, setUsername] = useState<string | null>(null);
+  // The session lives in memory (see session.ts). `booting` is true until we have
+  // asked the server whether the refresh cookie still holds a valid login.
+  const [session, setSessionState] = useState<Session | null>(getSession());
+  const [booting, setBooting] = useState(true);
+  const token = session?.token ?? null;
+  const username = session?.username ?? null;
   const [authView, setAuthView] = useState<'login' | 'signup'>('login');
 
   // Room & Chat states
@@ -34,16 +41,14 @@ export default function App() {
 
   // Profile & settings page, and the bits of the profile Home needs (the picture).
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
   const [avatarVersion, setAvatarVersion] = useState(0);
 
-  // Check localStorage on initial load
+  useEffect(() => subscribe(setSessionState), []);
+
+  // On load, resume the login from the HttpOnly refresh cookie (if there is one).
   useEffect(() => {
-    const savedToken = localStorage.getItem('jwt_token');
-    const savedUser = localStorage.getItem('username');
-    if (savedToken && savedUser) {
-      setToken(savedToken);
-      setUsername(savedUser);
-    }
+    void refreshSession().finally(() => setBooting(false));
   }, []);
 
   // Load the profile picture once signed in. A 401 means the saved token is stale.
@@ -68,12 +73,10 @@ export default function App() {
   const engineStatus = useEngineStatus(Boolean(token && username));
 
   const handleLogout = () => {
-    localStorage.removeItem('jwt_token');
-    localStorage.removeItem('username');
-    localStorage.removeItem('jwt_expires_at');
-    setToken(null);
-    setUsername(null);
+    void logoutRemote(); // ends this device's session on the server and clears the cookie
+    clearSession();
     setSelectedRoom(null);
+    setAdminOpen(false);
     setLabOpen(false);
     setAiOpen(false);
     setSettingsOpen(false);
@@ -83,12 +86,17 @@ export default function App() {
 
   // The server issues a fresh token when the username changes.
   const handleSessionChange = (newToken: string, newUser: string, expiresIn: number) => {
-    localStorage.setItem('jwt_token', newToken);
-    localStorage.setItem('username', newUser);
-    localStorage.setItem('jwt_expires_at', String(Date.now() + expiresIn * 1000));
-    setToken(newToken);
-    setUsername(newUser);
+    setSession(newToken, newUser, expiresIn);
   };
+
+  // Resuming a saved login: avoid flashing the login form while we check.
+  if (booting) {
+    return (
+      <div className="min-h-screen bg-[#06050b] grid place-items-center" aria-busy="true" aria-label="Loading">
+        <Logo size={64} animated />
+      </div>
+    );
+  }
 
   // 1. If not authenticated, show Login or Signup
   if (!token || !username) {
@@ -102,9 +110,8 @@ export default function App() {
     }
     return (
       <Login
-        onLoginSuccess={(newToken, newUser) => {
-          setToken(newToken);
-          setUsername(newUser);
+        onLoginSuccess={() => {
+          /* Login already stored the session; App re-renders through subscribe(). */
         }}
         onSwitchToSignup={() => setAuthView('signup')}
       />
@@ -113,6 +120,9 @@ export default function App() {
 
   // 2. Authenticated, no chat room open: Home, the lab, or the arcade
   if (!selectedRoom) {
+    if (adminOpen) {
+      return <Admin token={token} username={username} onBack={() => setAdminOpen(false)} onAuthExpired={handleLogout} />;
+    }
     if (settingsOpen) {
       return (
         <Settings
@@ -121,6 +131,7 @@ export default function App() {
           onBack={() => setSettingsOpen(false)}
           onLogout={handleLogout}
           onSessionChange={handleSessionChange}
+          onOpenAdmin={() => setAdminOpen(true)}
           onProfileChange={(patch) => {
             if (patch.avatarVersion !== undefined) setAvatarVersion(patch.avatarVersion);
           }}

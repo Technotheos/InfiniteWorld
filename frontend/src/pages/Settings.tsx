@@ -10,7 +10,8 @@ import { AvatarCropper } from '../components/AvatarCropper';
 import { isNetworkError } from '../components/authApi';
 import {
   AuthExpiredError, MAX_BIO, MIN_PASSWORD, USERNAME_RE, avatarUrl, changePassword, changeUsername,
-  getMe, removeAvatar, saveBio, uploadAvatar, type Profile,
+  getMe, listSessions, logoutEverywhere, removeAvatar, revokeSession, saveBio, uploadAvatar,
+  type Profile, type SessionInfo,
 } from '../components/profileApi';
 import { usePrefs, type Prefs } from '../hooks/usePrefs';
 import { loadProgress, rankFor, totalXp } from '../game/chain-lab';
@@ -26,6 +27,8 @@ interface SettingsProps {
   onLogout: () => void;
   /** The server issued a new token (after a username change). */
   onSessionChange: (token: string, username: string, expiresIn: number) => void;
+  /** Open the admin console (only offered to staff). */
+  onOpenAdmin?: () => void;
   /** Keeps the rest of the app (Home sidebar) in sync with edits made here. */
   onProfileChange: (patch: { bio?: string; avatarVersion?: number }) => void;
 }
@@ -119,6 +122,24 @@ function FieldError({ children }: { children?: ReactNode }) {
   );
 }
 
+/** "Chrome on Linux" from a User-Agent string (good enough for a device list). */
+function describeAgent(ua: string): string {
+  if (!ua) return 'Unknown device';
+  const browser = /Edg\//.test(ua) ? 'Edge' : /OPR\/|Opera/.test(ua) ? 'Opera' : /Firefox\//.test(ua) ? 'Firefox'
+    : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Browser';
+  const os = /Android/.test(ua) ? 'Android' : /iPhone|iPad|iOS/.test(ua) ? 'iOS' : /Windows/.test(ua) ? 'Windows'
+    : /Mac OS X|Macintosh/.test(ua) ? 'macOS' : /Linux|X11/.test(ua) ? 'Linux' : '';
+  return os ? `${browser} on ${os}` : browser;
+}
+
+function ago(iso: string): string {
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 90) return 'just now';
+  if (s < 3600) return `${Math.round(s / 60)} min ago`;
+  if (s < 86400) return `${Math.round(s / 3600)} h ago`;
+  return `${Math.round(s / 86400)} d ago`;
+}
+
 const PREF_ROWS: { key: keyof Prefs; label: string; hint: string }[] = [
   { key: 'starfield', label: 'Starfield', hint: 'The moving stars behind every screen.' },
   { key: 'warp', label: 'Warp jump', hint: 'The hyperspace flash when you enter a room.' },
@@ -129,7 +150,7 @@ const PREF_ROWS: { key: keyof Prefs; label: string; hint: string }[] = [
 /*  Settings                                                                  */
 /* -------------------------------------------------------------------------- */
 
-export default function Settings({ token, username, onBack, onLogout, onSessionChange, onProfileChange }: SettingsProps) {
+export default function Settings({ token, username, onBack, onLogout, onSessionChange, onOpenAdmin, onProfileChange }: SettingsProps) {
   const reduce = useReducedMotion();
   const [prefs, setPref] = usePrefs();
   const [me, setMe] = useState<Profile | null>(null);
@@ -155,6 +176,12 @@ export default function Settings({ token, username, onBack, onLogout, onSessionC
   const [confirmPw, setConfirmPw] = useState('');
   const [pwError, setPwError] = useState('');
   const [savingPw, setSavingPw] = useState(false);
+
+  const [devicesOpen, setDevicesOpen] = useState(false);
+  const [devices, setDevices] = useState<SessionInfo[] | null>(null);
+  const [devicesError, setDevicesError] = useState('');
+  const [busyDevice, setBusyDevice] = useState('');
+  const [confirmAll, setConfirmAll] = useState(false);
 
   const [toast, setToast] = useState('');
   const toastTimer = useRef<number | undefined>(undefined);
@@ -336,13 +363,55 @@ export default function Settings({ token, username, onBack, onLogout, onSessionC
     setSavingPw(true);
     setPwError('');
     try {
-      await changePassword(token, curPw, newPw);
+      // Every other device is signed out; the server hands this one a fresh login.
+      const res = await changePassword(token, curPw, newPw);
+      onSessionChange(res.token, res.username, res.expires_in);
       closePw();
-      say('Password updated');
+      say('Password updated. Other devices were signed out.');
     } catch (err) {
       setPwError(explain(err, 'Could not change your password.'));
     } finally {
       setSavingPw(false);
+    }
+  };
+
+  /* ---- devices ---- */
+
+  const loadDevices = async () => {
+    setDevicesError('');
+    try {
+      setDevices((await listSessions(token)).sessions);
+    } catch (err) {
+      setDevicesError(explain(err, 'Could not load your devices.'));
+    }
+  };
+
+  const toggleDevices = () => {
+    const next = !devicesOpen;
+    setDevicesOpen(next);
+    setConfirmAll(false);
+    if (next) void loadDevices();
+  };
+
+  const signOutDevice = async (id: string) => {
+    setBusyDevice(id);
+    try {
+      await revokeSession(token, id);
+      await loadDevices();
+      say('Device signed out');
+    } catch (err) {
+      setDevicesError(explain(err, 'Could not sign that device out.'));
+    } finally {
+      setBusyDevice('');
+    }
+  };
+
+  const signOutEverywhere = async () => {
+    try {
+      await logoutEverywhere(token);
+      onLogout(); // this device too
+    } catch (err) {
+      setDevicesError(explain(err, 'Could not sign out of all devices.'));
     }
   };
 
@@ -584,6 +653,63 @@ export default function Settings({ token, username, onBack, onLogout, onSessionC
                 </form>
               </Expand>
             </div>
+            <div>
+              <Row label="Devices" hint="Where you are signed in right now.">
+                <button type="button" onClick={toggleDevices} aria-expanded={devicesOpen} className={BTN_GHOST}>
+                  {devicesOpen ? 'Hide' : 'Manage'}
+                </button>
+              </Row>
+              <Expand open={devicesOpen}>
+                <div className="space-y-2 px-5 pb-5 sm:px-6">
+                  {devices === null && !devicesError && <p className="text-xs text-[#a49fb0]">Loading…</p>}
+                  {devices?.map((d) => (
+                    <div key={d.id} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 text-sm text-[#eee9dc]">
+                          <span className="truncate">{describeAgent(d.user_agent)}</span>
+                          {d.current && (
+                            <span className="shrink-0 rounded-full border border-[#e9b872]/40 px-2 py-0.5 text-[10px] uppercase tracking-wider text-[#e9b872]">
+                              This device
+                            </span>
+                          )}
+                        </div>
+                        <div className="truncate text-xs text-[#a49fb0]">
+                          {d.ip || 'unknown address'} · active {ago(d.last_used)}
+                        </div>
+                      </div>
+                      {!d.current && (
+                        <button
+                          type="button"
+                          onClick={() => void signOutDevice(d.id)}
+                          disabled={busyDevice === d.id}
+                          className={`shrink-0 rounded-lg px-2 py-1 text-xs text-[#a49fb0] transition hover:text-[#ff5d4a] disabled:opacity-50 ${FOCUS}`}
+                        >
+                          Sign out
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <FieldError>{devicesError}</FieldError>
+                  <div className="pt-2">
+                    {confirmAll ? (
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span className="text-xs text-[#c9c4d2]">Sign out of every device, including this one?</span>
+                        <button type="button" onClick={() => void signOutEverywhere()} className={`${BTN_GOLD} !py-1.5`}>
+                          Yes, sign out everywhere
+                        </button>
+                        <button type="button" onClick={() => setConfirmAll(false)} className={BTN_GHOST}>
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => setConfirmAll(true)} className={BTN_GHOST}>
+                        Log out of all devices
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </Expand>
+            </div>
             <Row label="Log out" hint="End your session on this device.">
               <button
                 type="button"
@@ -595,6 +721,18 @@ export default function Settings({ token, username, onBack, onLogout, onSessionC
             </Row>
           </Section>
         </motion.div>
+
+        {onOpenAdmin && me?.permissions.includes('users.read') && (
+          <motion.div {...rise(4)}>
+            <Section title="Admin">
+              <Row label="Admin console" hint={`Signed in as ${me.role}. Manage accounts and review activity.`}>
+                <button type="button" onClick={onOpenAdmin} className={BTN_GHOST}>
+                  Open
+                </button>
+              </Row>
+            </Section>
+          </motion.div>
+        )}
 
         <div className="flex items-center justify-center gap-2 pb-6 text-xs text-[#6f6a7c]">
             <Logo size={22} /> Infinite World
