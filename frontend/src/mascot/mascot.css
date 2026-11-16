@@ -1,21 +1,21 @@
 /* Embo the flame mascot. Pure CSS animation, no extra deps. */
 .em-wrap{position:fixed;bottom:6px;z-index:40;width:96px;pointer-events:none;will-change:left}
 .em-body{pointer-events:auto;cursor:pointer;background:none;border:0;padding:0;display:block;
-  filter:drop-shadow(0 0 14px rgba(255,130,0,.55)) drop-shadow(0 0 4px rgba(255,225,90,.65))}
+  filter:drop-shadow(0 0 14px var(--ga,rgba(255,130,0,.55))) drop-shadow(0 0 4px var(--gb,rgba(255,225,90,.65)))}
 .em-body:focus-visible{outline:2px solid #ffd21f;outline-offset:4px;border-radius:14px}
 .em-flip{transition:transform .15s}
 .em-hide{position:absolute;top:-2px;right:-8px;pointer-events:auto;width:20px;height:20px;border-radius:50%;
-  border:1px solid rgba(255,170,60,.5);background:rgba(20,12,8,.9);color:#ffd9a0;font-size:13px;line-height:1;
+  border:1px solid var(--bc,rgba(255,170,60,.5));background:rgba(20,12,8,.9);color:var(--bt,#ffd9a0);font-size:13px;line-height:1;
   cursor:pointer;opacity:0;transition:opacity .2s}
 .em-wrap:hover .em-hide,.em-hide:focus-visible{opacity:1}
 .em-show{position:fixed;left:12px;bottom:12px;z-index:40;width:38px;height:38px;border-radius:50%;cursor:pointer;
   border:1px solid rgba(255,170,60,.6);background:rgba(20,12,8,.9);font-size:18px;box-shadow:0 0 14px rgba(255,130,0,.5)}
 .em-bubble{position:absolute;bottom:100%;margin-bottom:4px;left:50%;transform:translateX(-50%);width:max-content;
-  max-width:220px;padding:8px 12px;border-radius:14px;font:500 13px/1.35 Manrope,system-ui,sans-serif;color:#ffe9c4;
-  background:rgba(20,12,8,.92);border:1px solid rgba(255,170,60,.55);box-shadow:0 0 18px rgba(255,120,0,.3);
+  max-width:220px;padding:8px 12px;border-radius:14px;font:500 13px/1.35 Manrope,system-ui,sans-serif;color:var(--bt,#ffe9c4);
+  background:rgba(20,12,8,.92);border:1px solid var(--bc,rgba(255,170,60,.55));box-shadow:0 0 18px var(--ga,rgba(255,120,0,.3));
   animation:em-pop .2s ease-out;pointer-events:none}
 .em-bubble::after{content:"";position:absolute;top:100%;left:50%;margin-left:-6px;border:6px solid transparent;
-  border-top-color:rgba(255,170,60,.55)}
+  border-top-color:var(--bc,rgba(255,170,60,.55))}
 .em-bubble.em-left{left:0;transform:none}.em-bubble.em-left::after{left:44px}
 @keyframes em-pop{from{opacity:0;transform:translateX(-50%) scale(.85)}}
 .em-bubble.em-left{animation-name:em-pop-l}@keyframes em-pop-l{from{opacity:0;transform:scale(.85)}}
@@ -58,4 +58,17 @@
 @keyframes em-snooze{0%,100%{transform:rotate(6deg) scale(1,.97)}50%{transform:rotate(6deg) scale(1.02,1)}}
 @keyframes em-toss{0%,100%{transform:translateY(0)}50%{transform:translateY(-52px)}}
 @keyframes em-float{0%{opacity:0;transform:translate(0,6px)}30%{opacity:1}100%{opacity:0;transform:translate(8px,-22px)}}
-@media (prefers-reduced-motion:reduce){.em *,.em-bubble{animation:none!important}}
+/* new roommates: Jolt (storm) and Sprig (glow) share every pose above */
+.em-jolt .em-flick{animation-duration:.22s}
+.em-bolt{animation:em-bolt 1.6s infinite}
+.em-sleep .em-bolt{animation:none;opacity:.5}
+.em-halo{animation:em-halo 1.8s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+.em-sprig .em-flick{animation-duration:1.4s}
+.em-sleep .em-halo{animation-play-state:paused;opacity:.15}
+.em-spawn{animation:em-spawn .6s cubic-bezier(.3,1.5,.5,1) both}
+.em-leave{animation:em-leave .26s ease-in forwards}
+@keyframes em-bolt{0%,86%,100%{opacity:1}90%{opacity:.2}94%{opacity:1}97%{opacity:.4}}
+@keyframes em-halo{50%{opacity:.75;transform:scale(1.3)}}
+@keyframes em-spawn{from{opacity:0;transform:translateY(-140px) scale(.4)}}
+@keyframes em-leave{to{opacity:0;transform:translateY(-60px) scale(.3)}}
+@media (prefers-reduced-motion:reduce){.em *,.em-bubble,.em-spawn,.em-leave{animation:none!important}}

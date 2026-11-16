@@ -12,6 +12,7 @@ import { Avatar } from '../components/Avatar';
 import { usePrefs } from '../hooks/usePrefs';
 import type { EngineStatus } from '../hooks/useEngineStatus';
 import { MAP_ORDER, MISSIONS, NODE_POS, loadProgress, rankFor, totalXp } from '../game/chain-lab';
+import { SlugBasket } from '../mascot';
 
 /* -------------------------------------------------------------------------- */
 /*  Props                                                                     */
@@ -416,6 +417,11 @@ export default function Home({
           <motion.p {...rise(1)} className="iw-display italic font-light text-xl leading-relaxed text-[#b9b3c4] max-w-4xl">
             “Time is not a currency to be spent, but an orbit—choose to revolve around what anchors your spirit, deepens your bonds, and expands your universe.”
           </motion.p>
+
+          {/* Slug Squad: the glass basket where Embo and friends live */}
+          <motion.section {...rise(1.5)} aria-label="Slug Squad">
+            <SlugBasket />
+          </motion.section>
 
           {/* Featured room: Chain Security Lab */}
           <motion.section {...rise(2)} aria-label="Chain Security Lab">

@@ -1,68 +1,126 @@
 import {
-  createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode,
+  createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
+  type CSSProperties, type ReactNode,
 } from "react";
 import "./mascot.css";
+import type { Pose } from "./pose";
+import { CHARS, ORDER, isCharId, type Char, type CharId, type Lines } from "./characters";
 
-export type Pose =
-  | "idle" | "walk" | "wave" | "surprised" | "sleep" | "trip" | "dizzy" | "cheer" | "juggle" | "sad";
+export type { Pose } from "./pose";
+export { Embo } from "./Embo";
 
-// ---------- Embo's vocabulary (add your own jokes here!) ----------
-const L = {
-  hello: ["Hi! I'm Embo. I'm 40% flame, 60% bad ideas.", "Embo reporting for duty. Mostly."],
-  idle: [
-    "Is it hot in here or is it just me? (it's me)",
-    "I tried to cool off once. We don't talk about it.",
-    "Fun fact: I have no fun facts.",
-    "Nobody's watching. Time to practice my cool pose. 😎",
-    "I'm basically a tiny sun with commitment issues.",
-    "Psst. You're doing great. Probably.",
-    "Don't mind me, just warming the pixels.",
-    "I could go for some marshmallows right now…",
-  ],
-  poke: ["Hey! Watch the flame!", "Ow! …no wait, that tickled.", "Careful, I'm hot property.", "Boop received."],
-  giggle: ["Hehehe stop, I'll ignite!", "Okay that's three. I'm counting.", "Ticklish! I'm made of fire and I'm ticklish!"],
-  dizzy: ["Everything is… orange… more than usual…", "I see two of you. Both are poking me.", "Spinning… in a good way… no… bad way…"],
-  egg: "Fine, you win! Secret: I'm not a flame, I'm a sunrise that got lost. 🌅",
-  wake: ["I wasn't sleeping! I was… resting my flicker.", "Huh?! What?! Who?! …oh. Hi.", "Five more minutes of glowing…"],
-  trip: ["Whoa— I meant to do that.", "The floor started it.", "Gravity again. Rude."],
-  sleepy: "*yawn* …I'm gonna rest my flicker for a sec…",
-  win: ["VICTORY! I'm so hot right now!", "You're on fire! …I mean, I'm on fire. Always. But you too!"],
-  lose: ["Aw… even losers get s'mores. Probably.", "That's okay. Ashes lead to new fires."],
-  err: ["Oops. That one wasn't me. I swear.", "Hmm. Something fizzled."],
-};
 const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
+const KEY = "mascot:out";
+const W = 96;
 
 // ---------- Public API ----------
 interface Api {
-  /** Make Embo say something. */
+  /** Make the lead slug say something. */
   say: (text: string, ms?: number) => void;
-  /** Make Embo react with a pose (and optionally a line). */
+  /** Make every slug that is out react with a pose (the lead also gets the line). */
   react: (pose: Pose, text?: string) => void;
+  /** True when every slug is back in the basket. */
   hidden: boolean;
   setHidden: (h: boolean) => void;
-  lines: typeof L;
+  /** The lead slug's vocabulary (Embo's when nobody is out). */
+  lines: Lines;
+  /** Which slugs are currently out of the basket, in the order they came out. */
+  out: CharId[];
+  /** Let a slug out. `fromX` (screen px) is where it pops out, e.g. the basket. */
+  release: (id: CharId, fromX?: number) => void;
+  collect: (id: CharId) => void;
+  releaseAll: () => void;
+  collectAll: () => void;
 }
-const noop: Api = { say() {}, react() {}, hidden: false, setHidden() {}, lines: L };
+const noop: Api = {
+  say() {}, react() {}, hidden: false, setHidden() {}, lines: CHARS.embo.lines,
+  out: [], release() {}, collect() {}, releaseAll() {}, collectAll() {},
+};
 const Ctx = createContext<Api>(noop);
 export const useMascot = () => useContext(Ctx);
 
-const W = 96;
+interface Brain { say: (t: string, ms?: number) => void; react: (p: Pose, t?: string) => void }
+
+function loadOut(): CharId[] {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) {
+      const v: unknown = JSON.parse(raw);
+      if (Array.isArray(v)) return Array.from(new Set(v.filter(isCharId)));
+    }
+    if (localStorage.getItem("embo:hidden") === "1") return []; // older versions
+  } catch { /* storage unavailable */ }
+  return ["embo"];
+}
 
 export function MascotProvider({ children, avoidRight = 170 }: { children: ReactNode; avoidRight?: number }) {
+  const [out, setOut] = useState<CharId[]>(loadOut);
+  const spawn = useRef<Partial<Record<CharId, number>>>({});
+  const brains = useRef<Partial<Record<CharId, Brain>>>({});
+
+  useEffect(() => {
+    try { localStorage.setItem(KEY, JSON.stringify(out)); } catch { /* storage unavailable */ }
+  }, [out]);
+
+  const release = useCallback((id: CharId, fromX?: number) => {
+    if (fromX !== undefined) spawn.current[id] = fromX;
+    setOut((o) => (o.includes(id) ? o : [...o, id]));
+  }, []);
+  const collect = useCallback((id: CharId) => setOut((o) => o.filter((x) => x !== id)), []);
+  const releaseAll = useCallback(() => setOut(ORDER.slice()), []);
+  const collectAll = useCallback(() => setOut([]), []);
+  const register = useCallback((id: CharId, b: Brain | null) => {
+    if (b) brains.current[id] = b; else delete brains.current[id];
+  }, []);
+
+  const lead = out[0];
+  const api = useMemo<Api>(() => ({
+    say: (t, ms) => { if (lead) brains.current[lead]?.say(t, ms); },
+    react: (p, t) => { out.forEach((id) => brains.current[id]?.react(p, id === lead ? t : undefined)); },
+    hidden: out.length === 0,
+    setHidden: (h) => setOut((o) => (h ? [] : o.length ? o : ["embo"])),
+    lines: CHARS[lead ?? "embo"].lines,
+    out, release, collect, releaseAll, collectAll,
+  }), [out, lead, release, collect, releaseAll, collectAll]);
+
+  return (
+    <Ctx.Provider value={api}>
+      {children}
+      {out.length === 0 ? (
+        <button type="button" className="em-show" onClick={() => release("embo")} aria-label="Let a slug out" title="Let a slug out">🔥</button>
+      ) : (
+        out.map((id) => (
+          <Wanderer key={id} char={CHARS[id]} avoidRight={avoidRight} startX={spawn.current[id]}
+            onCollect={collect} register={register} />
+        ))
+      )}
+    </Ctx.Provider>
+  );
+}
+
+// ---------- One roaming slug: a tiny state machine with random behaviour ----------
+function Wanderer({ char, avoidRight, startX, onCollect, register }: {
+  char: Char; avoidRight: number; startX?: number;
+  onCollect: (id: CharId) => void; register: (id: CharId, b: Brain | null) => void;
+}) {
+  const L = char.lines;
+  const Art = char.Art;
   const [pose, setPose] = useState<Pose>("idle");
-  const [x, setX] = useState(24);
+  const [x, setX] = useState(() => {
+    const maxX = Math.max(16, (typeof window === "undefined" ? 800 : window.innerWidth) - W - 8);
+    return Math.min(maxX, startX !== undefined ? Math.max(8, startX) : 24 + ORDER.indexOf(char.id) * 230);
+  });
   const [dir, setDir] = useState<1 | -1>(1);
   const [dur, setDur] = useState(0);
   const [bubble, setBubble] = useState<{ id: number; text: string } | null>(null);
-  const [hidden, setHiddenState] = useState(() => {
-    try { return localStorage.getItem("embo:hidden") === "1"; } catch { return false; }
-  });
+  const [fresh, setFresh] = useState(true);
+  const [leaving, setLeaving] = useState(false);
 
   const el = useRef<HTMLDivElement>(null);
   const timers = useRef<number[]>([]);
   const bubbleT = useRef(0);
   const poseRef = useRef<Pose>("idle");
-  const xRef = useRef(24);
+  const xRef = useRef(x);
   const lastAct = useRef(Date.now());
   const pokes = useRef({ n: 0, t: 0 });
   const brain = useRef({ react: (_p: Pose, _t?: string) => {}, poke: () => {} });
@@ -75,14 +133,21 @@ export function MascotProvider({ children, avoidRight = 170 }: { children: React
     bubbleT.current = window.setTimeout(() => setBubble(null), ms ?? 2800 + text.length * 45);
   }, []);
 
-  const setHidden = useCallback((h: boolean) => {
-    setHiddenState(h);
-    try { localStorage.setItem("embo:hidden", h ? "1" : "0"); } catch { /* storage unavailable */ }
+  useEffect(() => {
+    const t = window.setTimeout(() => setFresh(false), 700);
+    return () => window.clearTimeout(t);
   }, []);
 
-  // ----- the brain: a tiny state machine with random behaviour -----
   useEffect(() => {
-    if (hidden) return;
+    register(char.id, {
+      say,
+      react: (p, t) => { lastAct.current = Date.now(); brain.current.react(p, t); },
+    });
+    return () => register(char.id, null);
+  }, [char.id, register, say]);
+
+  // ----- the brain -----
+  useEffect(() => {
     const later = (fn: () => void, ms: number) => { timers.current.push(window.setTimeout(fn, ms)); };
     const clear = () => { timers.current.forEach(clearTimeout); timers.current = []; };
     const to = (p: Pose) => { poseRef.current = p; setPose(p); };
@@ -112,7 +177,7 @@ export function MascotProvider({ children, avoidRight = 170 }: { children: React
         const r = Math.random();
         if (r < 0.38 && !reduce) walk();
         else if (r < 0.52) act("wave", 1600);
-        else if (r < 0.66) act("juggle", 3400, "Look ma, no hands! …well, tiny hands.");
+        else if (r < 0.66) act("juggle", 3400, L.juggle);
         else if (r < 0.76) act("trip", 1200, pick(L.trip));
         else { say(pick(L.idle)); later(think, 3800); }
       }, 2500 + Math.random() * 4500);
@@ -154,7 +219,10 @@ export function MascotProvider({ children, avoidRight = 170 }: { children: React
     window.addEventListener("pointerdown", onPress);
     window.addEventListener("keydown", onPress);
 
-    const hi = window.setTimeout(() => brain.current.react("wave", pick(L.hello)), 1200);
+    // a slug that was just let out of the basket greets you faster
+    const hi = window.setTimeout(
+      () => brain.current.react("wave", startX !== undefined ? pick([L.basketOut, ...L.hello]) : pick(L.hello)),
+      startX !== undefined ? 500 : 1200 + ORDER.indexOf(char.id) * 2200);
     think();
     return () => {
       clear(); clearTimeout(hi); cancelAnimationFrame(raf);
@@ -162,35 +230,30 @@ export function MascotProvider({ children, avoidRight = 170 }: { children: React
       window.removeEventListener("pointerdown", onPress);
       window.removeEventListener("keydown", onPress);
     };
-  }, [hidden, reduce, avoidRight, say]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reduce, avoidRight, say, L]);
 
-  const api = useMemo<Api>(() => ({
-    say,
-    react: (p, t) => { lastAct.current = Date.now(); brain.current.react(p, t); },
-    hidden, setHidden, lines: L,
-  }), [say, hidden, setHidden]);
+  const leave = () => {
+    window.clearTimeout(bubbleT.current);
+    setBubble(null);
+    setLeaving(true);
+    window.setTimeout(() => onCollect(char.id), 260);
+  };
+
+  const vars = { ["--ga"]: char.glowA, ["--gb"]: char.glowB, ["--bc"]: char.border, ["--bt"]: char.text } as CSSProperties;
 
   return (
-    <Ctx.Provider value={api}>
-      {children}
-      {hidden ? (
-        <button type="button" className="em-show" onClick={() => setHidden(false)} aria-label="Bring Embo back" title="Bring Embo back">🔥</button>
-      ) : (
-        <div ref={el} className="em-wrap" style={{ left: x, transition: dur ? `left ${dur}s linear` : "none" }}>
-          {bubble && (
-            <div key={bubble.id} className={`em-bubble${x < 130 ? " em-left" : ""}`} role="status">{bubble.text}</div>
-          )}
-          <button type="button" className="em-hide" onClick={() => setHidden(true)} aria-label="Hide Embo" title="Hide Embo">×</button>
-          <button type="button" className="em-body" onClick={() => brain.current.poke()}
-            aria-label="Embo, the flame mascot. Click to poke.">
-            <Embo pose={pose} dir={dir} />
-          </button>
-        </div>
+    <div ref={el} className={`em-wrap${fresh ? " em-spawn" : ""}${leaving ? " em-leave" : ""}`}
+      style={{ left: x, transition: dur ? `left ${dur}s linear` : "none", ...vars }}>
+      {bubble && (
+        <div key={bubble.id} className={`em-bubble${x < 130 ? " em-left" : ""}`} role="status">{bubble.text}</div>
       )}
-    </Ctx.Provider>
+      <button type="button" className="em-hide" onClick={leave}
+        aria-label={`Put ${char.name} back in the basket`} title="Back to the basket">×</button>
+      <button type="button" className="em-body" onClick={() => brain.current.poke()}
+        aria-label={`${char.name}, the ${char.kind.toLowerCase()} mascot. Click to poke.`}>
+        <Art pose={pose} dir={dir} />
+      </button>
+    </div>
   );
 }
-
-// ---------- The character itself (original design: fire / sun palette) ----------
-import { Embo } from "./Embo";
-export { Embo };
