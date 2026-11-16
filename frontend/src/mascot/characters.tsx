@@ -80,7 +80,7 @@ export const CHARS: Record<CharId, Char> = {
         "Plot twist: I was the thunder all along.",
         "Everything's better with a little zap.",
       ],
-      poke: ["Hey! Hands off the voltage!", "Zzzt! Okay, that one was fun.", "Careful, I bite… with electricity. Mostly tingles.", "You just got a free static shock!"],
+      poke: ["wata ryh al9lawi!", "Ryh asahbi! rah fia daw!", "Careful, I bite… with electricity. Mostly tingles.", "You just got a free static shock!"],
       giggle: ["Hehe! That's my funny bone! …do I have one?", "Three pokes? Now I'm charged up!", "Stop it, I'll short-circuit from laughing!"],
       dizzy: ["Everything's buzzing… more than usual…", "My current's going the wrong way…", "Too much spin… need… ground…"],
       egg: "Alright, alright! Secret: I'm scared of thunder. Don't tell the clouds. ⚡",
