@@ -13,6 +13,7 @@ import { usePrefs } from '../hooks/usePrefs';
 import type { EngineStatus } from '../hooks/useEngineStatus';
 import { MAP_ORDER, MISSIONS, NODE_POS, loadProgress, rankFor, totalXp } from '../game/chain-lab';
 import { SlugBasket } from '../mascot';
+import { RoomPortals } from '../components/RoomPortals';
 
 /* -------------------------------------------------------------------------- */
 /*  Props                                                                     */
@@ -24,8 +25,10 @@ interface HomeProps {
   onOpenLab: () => void;
   /** Open the Deep AI Lab room. */
   onOpenAILab: () => void;
-  /** Open the game room picker (Quick Arena, Cipher Lab, Social Spark...). */
-  onOpenPlay: () => void;
+  /** Enter a game room straight from its card (quick play, or a new private room). */
+  onPlayMap: (mapId: string, isPrivate: boolean) => Promise<string>;
+  /** Join a game room by its code. */
+  onJoinCode: (code: string) => void;
   /** Join a live chat room by id. */
   onSelectRoom: (roomId: string) => void;
   onLogout: () => void;
@@ -92,45 +95,6 @@ const chatRooms: { id: string; title: string; tag: string; desc: string; icon: L
     desc: 'Consensus, queues and failure modes.',
     icon: Network,
     accent: '#5eead4',
-  },
-];
-
-// Informational cards for the game rooms (the live list comes from the server in the picker).
-const arcade = [
-  {
-    name: 'Quick Arena',
-    mode: 'Versus',
-    players: '1–8 players',
-    desc: 'Reflex, Math Sprint and Type Storm, head to head.',
-    accent: '#9b8cff',
-  },
-  {
-    name: 'Cipher Lab',
-    mode: 'Versus',
-    players: '1–8 players',
-    desc: 'Crack Caesar, Base64, Hex and Binary, and learn what each encoding really is.',
-    accent: '#5eead4',
-  },
-  {
-    name: 'Social Spark',
-    mode: 'Co-op',
-    players: '2–6 players',
-    desc: 'Three conversation missions. The team wins only if everyone agrees each is done.',
-    accent: '#e9b872',
-  },
-  {
-    name: 'Brain Bazaar',
-    mode: 'Versus',
-    players: '1–8 players',
-    desc: 'Bet coins on your own knowledge: estimate, spot the fib, complete the chain. Bold bets pay double.',
-    accent: '#f5b942',
-  },
-  {
-    name: 'Midnight Mystery',
-    mode: 'Social deduction',
-    players: '4–6 players',
-    desc: 'A crime in 3D noir. Secret roles, a hidden liar, and testimony you must cross-check to find them.',
-    accent: '#ff5d73',
   },
 ];
 
@@ -222,7 +186,8 @@ export default function Home({
   username,
   onOpenLab,
   onOpenAILab,
-  onOpenPlay,
+  onPlayMap,
+  onJoinCode,
   onSelectRoom,
   onLogout,
   onOpenSettings,
@@ -232,6 +197,7 @@ export default function Home({
   const displayName = username || 'Explorer';
   const starfield = useRef<StarfieldHandle | null>(null);
   const chatRef = useRef<HTMLElement | null>(null);
+  const arcadeRef = useRef<HTMLElement | null>(null);
   const [warping, setWarping] = useState(false);
   const [done] = useState(loadProgress);
   const reduce = useReducedMotion();
@@ -245,16 +211,16 @@ export default function Home({
 
   // Plays the hyperspace jump, then navigates.
   const enter = useCallback(
-    async (go: () => void) => {
+    async (go: () => Promise<void> | void) => {
       if (warping) return;
       if (!prefs.warp) {
-        go();
+        await go();
         return;
       }
       setWarping(true);
       try {
         await starfield.current?.warp();
-        go();
+        await go();
       } finally {
         setWarping(false);
       }
@@ -317,7 +283,7 @@ export default function Home({
             <button onClick={() => void enter(onOpenAILab)} disabled={warping} className={`${navBtn} text-[#a49fb0] hover:text-cyan-300 hover:bg-cyan-400/5`}>
               <Brain size={18} /> Deep AI Lab
             </button>
-            <button onClick={() => void enter(onOpenPlay)} disabled={warping} className={`${navBtn} text-[#a49fb0] hover:text-[#eee9dc] hover:bg-white/5`}>
+            <button onClick={() => arcadeRef.current?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })} className={`${navBtn} text-[#a49fb0] hover:text-[#eee9dc] hover:bg-white/5`}>
               <Gamepad2 size={18} /> Arcade
             </button>
             <button
@@ -363,7 +329,7 @@ export default function Home({
 
       {/* Main */}
       <main className={`relative z-10 flex-1 min-w-0 overflow-y-auto ${fade}`}>
-        <div className="mx-auto max-w-6xl px-5 sm:px-10 py-8 space-y-10">
+        <div className="mx-auto max-w-6xl px-4 sm:px-10 py-6 sm:py-8 space-y-8 sm:space-y-10">
           <div className="md:hidden flex items-center gap-2.5">
             <Logo size={30} animated={prefs.ambient} />
             <span className="iw-display text-xl text-[#e9b872]">Infinite World</span>
@@ -382,12 +348,12 @@ export default function Home({
                 <p className="text-xs text-[#a49fb0]">
                   {rank.title} · {charted} of {MISSIONS.length} missions charted
                 </p>
-                <h2 className="iw-display text-5xl sm:text-6xl font-light tracking-wide capitalize leading-tight">
+                <h2 className="iw-display text-4xl sm:text-6xl font-light tracking-wide capitalize leading-tight break-all sm:break-normal">
                   {displayName}
                 </h2>
                 <div className="mt-2 flex items-center gap-3">
                   <div
-                    className="w-44 h-1.5 rounded-full bg-white/10 overflow-hidden"
+                    className="w-28 sm:w-44 h-1.5 rounded-full bg-white/10 overflow-hidden"
                     role="progressbar"
                     aria-valuenow={Math.round(rank.pct)}
                     aria-valuemin={0}
@@ -519,48 +485,22 @@ export default function Home({
             </div>
           </motion.section>
 
-          {/* Arcade */}
-          <motion.section {...rise(4)} aria-label="Arcade" className="space-y-4">
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <h3 className="iw-display text-3xl font-light">Arcade</h3>
-                <p className="text-sm text-[#a49fb0] mt-1">Quick missions with other players. Finish them and see who played best.</p>
-              </div>
-              <button
-                onClick={() => void enter(onOpenPlay)}
-                disabled={warping}
-                className={`px-4 py-2.5 rounded-xl border border-white/10 text-sm text-[#c9c4d2] hover:text-[#eee9dc] hover:bg-white/5 flex items-center gap-2 transition ${FOCUS}`}
-              >
-                Choose a room <ArrowUpRight size={15} />
-              </button>
+          {/* Arcade: each portal enters its room directly */}
+          <motion.section {...rise(4)} aria-label="Arcade" ref={arcadeRef} className="space-y-4 scroll-mt-8">
+            <div>
+              <div className="font-mono text-[11px] tracking-[0.25em] text-[#9b8cff]">// GAME SECTORS</div>
+              <h3 className="iw-display text-3xl font-light mt-1">Arcade</h3>
+              <p className="text-sm text-[#a49fb0] mt-1">Pick a sector and you are in. Finish the missions and see who played best.</p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {arcade.map((a) => (
-                <motion.button
-                  key={a.name}
-                  onClick={() => void enter(onOpenPlay)}
-                  disabled={warping}
-                  whileHover={reduce ? undefined : { y: -3 }}
-                  className={`text-left rounded-2xl border border-white/10 bg-[#0d0b16]/75 backdrop-blur-md p-5 hover:border-white/25 transition-colors ${FOCUS}`}
-                >
-                  <div className="flex items-center gap-2 text-[11px]">
-                    <span className="px-2.5 py-1 rounded-full border" style={{ color: a.accent, borderColor: `${a.accent}66` }}>
-                      {a.mode}
-                    </span>
-                    <span className="text-[#a49fb0]">{a.players}</span>
-                  </div>
-                  <div className="iw-display text-2xl mt-3">{a.name}</div>
-                  <p className="text-xs text-[#a49fb0] leading-relaxed mt-1.5">{a.desc}</p>
-                </motion.button>
-              ))}
-            </div>
+            <RoomPortals onPlayMap={onPlayMap} onJoinCode={onJoinCode} disabled={warping} warp={enter} />
           </motion.section>
 
           {/* Chat rooms */}
           <motion.section {...rise(5)} aria-label="Chat rooms" ref={chatRef} className="space-y-4 scroll-mt-8">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
-                <h3 className="iw-display text-3xl font-light">Chat rooms</h3>
+                <div className="font-mono text-[11px] tracking-[0.25em] text-[#5eead4]">// OPEN CHANNELS</div>
+                <h3 className="iw-display text-3xl font-light mt-1">Chat rooms</h3>
                 <p className="text-sm text-[#a49fb0] mt-1">Live conversation, one topic per room.</p>
               </div>
               <button
@@ -577,13 +517,13 @@ export default function Home({
                 return (
                   <li
                     key={r.id}
-                    className="relative overflow-hidden flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-[#0d0b16]/75 backdrop-blur-md pl-6 pr-5 py-4 hover:border-white/25 transition-colors"
+                    className="relative overflow-hidden flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-[#0d0b16]/75 backdrop-blur-md pl-5 pr-3 sm:pl-6 sm:pr-5 py-3.5 sm:py-4 hover:border-white/25 transition-colors"
                   >
                     <span aria-hidden="true" className="absolute inset-y-0 left-0 w-1" style={{ background: r.accent }} />
                     <div className="flex items-center gap-4 min-w-0">
                       <span
                         aria-hidden="true"
-                        className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border"
+                        className="grid h-11 w-11 sm:h-12 sm:w-12 shrink-0 place-items-center rounded-2xl border"
                         style={{ color: r.accent, borderColor: `${r.accent}55`, background: `${r.accent}14`, boxShadow: `0 0 26px ${r.accent}33` }}
                       >
                         <Icon size={22} />
@@ -604,7 +544,7 @@ export default function Home({
                     <button
                       onClick={() => void enter(() => onSelectRoom(r.id))}
                       disabled={warping}
-                      className={`shrink-0 px-5 py-2 rounded-xl text-[#0b0a10] font-bold text-sm hover:brightness-110 disabled:opacity-60 transition ${FOCUS}`}
+                      className={`shrink-0 px-4 sm:px-5 py-2.5 rounded-xl text-[#0b0a10] font-bold text-sm hover:brightness-110 disabled:opacity-60 transition ${FOCUS}`}
                       style={{ background: r.accent }}
                     >
                       Join

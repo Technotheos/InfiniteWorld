@@ -101,7 +101,7 @@ export function MissionView({
     setStage('patch');
   };
 
-  const panel = 'rounded-2xl border border-white/10 bg-[#0d0b16]/75 backdrop-blur-md p-5';
+  const panel = 'rounded-2xl border border-white/10 bg-[#0d0b16]/75 backdrop-blur-md p-4 sm:p-5';
   const primary = `px-5 py-2.5 rounded-xl bg-[#e9b872] text-[#1a1208] font-bold text-sm hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed transition ${FOCUS}`;
   const ghost = `px-4 py-2.5 rounded-xl border border-white/10 text-sm text-[#a49fb0] hover:text-[#eee9dc] hover:bg-white/5 transition ${FOCUS}`;
 
@@ -111,7 +111,7 @@ export function MissionView({
         <button onClick={onBack} className={`flex items-center gap-2 text-sm text-[#a49fb0] hover:text-[#eee9dc] ${FOCUS} rounded-lg`}>
           <ArrowLeft size={16} /> Sector map
         </button>
-        <ol className="flex flex-wrap items-center gap-2" aria-label="Mission progress">
+        <ol className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto max-w-full pb-1" aria-label="Mission progress">
           {STAGES.map((s, i) => {
             const active = stage === s.id;
             const done = i < unlocked;
@@ -121,7 +121,7 @@ export function MissionView({
                   disabled={i > unlocked}
                   onClick={() => setStage(s.id)}
                   aria-current={active ? 'step' : undefined}
-                  className={`px-3.5 py-1.5 rounded-full text-xs font-medium border flex items-center gap-1.5 transition ${FOCUS} ${
+                  className={`px-3 sm:px-3.5 py-2 sm:py-1.5 rounded-full text-xs font-medium border flex items-center gap-1.5 whitespace-nowrap transition ${FOCUS} ${
                     active
                       ? 'border-[#e9b872] text-[#e9b872] bg-[#e9b872]/10'
                       : i > unlocked
@@ -138,7 +138,7 @@ export function MissionView({
       </div>
 
       <div>
-        <h3 className="iw-display text-4xl font-light tracking-wide">{mission.title}</h3>
+        <h3 className="iw-display text-3xl sm:text-4xl font-light tracking-wide">{mission.title}</h3>
         <p className="text-sm text-[#a49fb0] mt-1">
           {mission.chain} · {mission.date}
         </p>
