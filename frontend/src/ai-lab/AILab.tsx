@@ -3,6 +3,7 @@ import { ArrowLeft, MessageCircle } from "lucide-react";
 import { NeuralBackdrop } from "./NeuralBackdrop";
 import { Backprop } from "./Backprop";
 import "./ai-lab.css";
+import { UserAvatar } from "../components/Avatar";
 
 interface Lesson { id: string; title: string; icon: string; Component?: ComponentType }
 // Add a lesson: build a component, then register it here. Lessons without a Component show as "soon".
@@ -24,7 +25,7 @@ export function AILab({ username, onLeave, onDiscuss }: { username: string; onLe
         <div className="ail-top">
           <button className="ail-btn" onClick={onLeave}><ArrowLeft size={14} style={{ display: "inline", marginRight: 6 }} />Back</button>
           <button className="ail-btn" onClick={onDiscuss}><MessageCircle size={14} style={{ display: "inline", marginRight: 6 }} />Discuss</button>
-          <span style={{ marginLeft: "auto", color: "var(--mu)", fontSize: 13 }}>researcher: {username}</span>
+          <span style={{ marginLeft: "auto", color: "var(--mu)", fontSize: 13, display: "inline-flex", alignItems: "center", gap: 8 }}><UserAvatar name={username} size={26} />{username}</span>
         </div>
         <header className="ail-hero">
           <div className="ail-kick">Deep AI · open the black box</div>
