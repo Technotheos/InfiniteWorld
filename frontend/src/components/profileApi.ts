@@ -111,6 +111,10 @@ export const logoutEverywhere = (token: string) =>
 export const avatarUrl = (username: string, version: number) =>
   version > 0 ? `${API_URL}/api/avatar/${encodeURIComponent(username)}?v=${version}` : null;
 
+/** Public picture URL for ANY user by name (404 -> the Avatar falls back to the initial). */
+export const publicAvatarUrl = (username: string) =>
+  `${API_URL}/api/avatar/${encodeURIComponent((username || '').toLowerCase())}`;
+
 /** Mirrors the server's username rule (usernames are lower-cased). */
 export const USERNAME_RE = /^[a-z0-9_.-]{3,32}$/;
 export const MIN_PASSWORD = 12;
