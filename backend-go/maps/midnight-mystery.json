@@ -1,0 +1,25 @@
+{
+  "id": "midnight-mystery",
+  "name": "Midnight Mystery",
+  "tagline": "A crime, a secret role for everyone, and one liar. Cross-check the testimony and find them.",
+  "theme": "noir",
+  "mode": "versus",
+  "min_players": 4,
+  "max_players": 6,
+  "missions": [
+    {
+      "kind": "mystery",
+      "variant": "museum",
+      "title": "Case 1: The Orion Diamond",
+      "brief": "Everyone is a suspect with a secret role. Compare alibis, use your tools, then vote for the culprit.",
+      "duration_ms": 45000
+    },
+    {
+      "kind": "mystery",
+      "variant": "lab",
+      "title": "Case 2: The Helix Serum",
+      "brief": "New case, new roles. Logs and testimony can disagree: work out which one the culprit controlled.",
+      "duration_ms": 45000
+    }
+  ]
+}

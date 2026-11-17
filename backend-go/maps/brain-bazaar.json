@@ -1,0 +1,35 @@
+{
+  "id": "brain-bazaar",
+  "name": "Brain Bazaar",
+  "tagline": "Bet on what you know. Bold bets pay double, bad ones sting.",
+  "theme": "bazaar",
+  "mode": "versus",
+  "min_players": 1,
+  "max_players": 8,
+  "missions": [
+    {
+      "kind": "bazaar",
+      "variant": "estimate",
+      "title": "Estimate It",
+      "brief": "Guess the number and stake coins on it. The closer you are, the bigger the payout. Way off and you lose the stake.",
+      "rounds": 5,
+      "duration_ms": 25000
+    },
+    {
+      "kind": "bazaar",
+      "variant": "fib",
+      "title": "Fact or Fib",
+      "brief": "Four statements, one is a fib. Pick it and bet on your nose for nonsense. Right pays, wrong costs.",
+      "rounds": 5,
+      "duration_ms": 20000
+    },
+    {
+      "kind": "bazaar",
+      "variant": "chain",
+      "title": "Chain Reaction",
+      "brief": "One link in a chain of ideas is missing. Reason out the link, then back your answer with coins.",
+      "rounds": 5,
+      "duration_ms": 25000
+    }
+  ]
+}
