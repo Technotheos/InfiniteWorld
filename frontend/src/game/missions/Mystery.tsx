@@ -150,7 +150,7 @@ export function Mystery({ play, priv, you, send }: MissionProps<MysteryPlay, Mys
                 {play.suspects.map((s) => (
                   <tr key={s.name} className={s.name === you ? "me" : ""}>
                     <th scope="row">
-                      <span className="my-swatch" style={{ background: COAT_CSS[s.coat % 8] }} title={`${play.coats[s.coat]} coat`} />
+                      <span className="my-who"><Avatar name={s.name} size={28} /><span className="my-swatch my-pin" style={{ background: COAT_CSS[s.coat % 8] }} title={`${play.coats[s.coat]} coat`} /></span>
                       <span>{s.name}{s.name === you ? " (you)" : ""}<small>{play.jobs[s.job]} · {play.coats[s.coat]} coat</small></span>
                     </th>
                     {(claims[s.name] ?? []).map((c, i) => {
@@ -265,7 +265,7 @@ export function Mystery({ play, priv, you, send }: MissionProps<MysteryPlay, Mys
                 aria-pressed={(priv?.vote || pickVote) === s.name}
                 onMouseEnter={() => setPickVote(s.name)} onFocus={() => setPickVote(s.name)}
                 onClick={() => { setPickVote(s.name); send_("vote", { target: s.name }); }}>
-                <span className="my-swatch big" style={{ background: COAT_CSS[s.coat % 8] }} />
+                <span className="my-who"><Avatar name={s.name} size={46} /><span className="my-swatch my-pin" style={{ background: COAT_CSS[s.coat % 8] }} title={`${play.coats[s.coat]} coat`} /></span>
                 <b>{s.name}</b><small>{play.jobs[s.job]}</small>
                 {play.voted.includes(s.name) && <em>voted</em>}
               </button>
@@ -303,7 +303,7 @@ function Unmask({ play, u, you }: { play: MysteryPlay; u: NonNullable<MysteryPla
           <tbody>
             {play.suspects.map((s) => (
               <tr key={s.name}>
-                <th scope="row">{s.name}</th>
+                <th scope="row"><span className="my-who-inline"><Avatar name={s.name} size={20} /> {s.name}</span></th>
                 {(u.truth[s.name] ?? []).map((r, i) => {
                   const said = play.claims?.[s.name]?.[i];
                   const lied = !!said && !said.hidden && said.room !== r;
