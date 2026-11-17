@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { GameView } from "./GameView";
 import { useGameSocket } from "./useGameSocket";
 import "./game.css";
+import "./rooms.css";
 
 interface Props {
   code: string;

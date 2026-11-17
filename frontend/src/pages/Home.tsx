@@ -118,6 +118,20 @@ const arcade = [
     desc: 'Three conversation missions. The team wins only if everyone agrees each is done.',
     accent: '#e9b872',
   },
+  {
+    name: 'Brain Bazaar',
+    mode: 'Versus',
+    players: '1–8 players',
+    desc: 'Bet coins on your own knowledge: estimate, spot the fib, complete the chain. Bold bets pay double.',
+    accent: '#f5b942',
+  },
+  {
+    name: 'Midnight Mystery',
+    mode: 'Social deduction',
+    players: '4–6 players',
+    desc: 'A crime in 3D noir. Secret roles, a hidden liar, and testimony you must cross-check to find them.',
+    accent: '#ff5d73',
+  },
 ];
 
 /* -------------------------------------------------------------------------- */
@@ -520,7 +534,7 @@ export default function Home({
                 Choose a room <ArrowUpRight size={15} />
               </button>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {arcade.map((a) => (
                 <motion.button
                   key={a.name}

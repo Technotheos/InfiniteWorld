@@ -3,6 +3,7 @@ import { createRoom, listMaps, quickPlay } from "./gameApi";
 import { MissionIcon } from "./ui";
 import type { MapInfo } from "./types";
 import "./game.css";
+import "./rooms.css";
 
 interface Props {
   token: string;

@@ -43,6 +43,10 @@ func newMission(def *MissionDef, rng *rand.Rand) (Mission, error) {
 		return &cipherMission{def: def, rng: rng}, nil
 	case "talk":
 		return &talkMission{def: def, rng: rng}, nil
+	case "bazaar":
+		return &bazaarMission{def: def, rng: rng}, nil
+	case "mystery":
+		return &mysteryMission{def: def, rng: rng}, nil
 	}
 	return nil, fmt.Errorf("unknown mission kind %q", def.Kind)
 }

@@ -18,6 +18,14 @@ const expect: Record<string, RegExp> = {
   "social spark (coop)": /small thing that always improves/,
   "final (versus)": /neo wins!/,
   "final (coop)": /Mission complete/,
+  "bazaar: fib (ask)": /Spot the fib[\s\S]*Lock in my bet/,
+  "bazaar: estimate (between)": /Mount Everest[\s\S]*Wacky Penalty for morpheus/,
+  "bazaar: chain": /missing[\s\S]*Hash the salted password/,
+  "mystery: intro": /Door opened during[\s\S]*SECRET ROLE/,
+  "mystery: alibi": /Testimony board[\s\S]*private errand/,
+  "mystery: investigate": /Security cameras[\s\S]*Anonymous tip/,
+  "mystery: vote": /Who did it\?/,
+  "mystery: unmask": /morpheus is caught![\s\S]*Where everyone really was/,
 };
 
 let failed = 0;

@@ -17,12 +17,12 @@ import (
 var mapFiles embed.FS
 
 type MissionDef struct {
-	Kind       string   `json:"kind"` // reaction | math | typing | cipher | talk
+	Kind       string   `json:"kind"` // reaction | math | typing | cipher | talk | bazaar | mystery
 	Title      string   `json:"title"`
 	Brief      string   `json:"brief"`
 	DurationMS int      `json:"duration_ms,omitempty"` // time limit (per puzzle for cipher)
-	Rounds     int      `json:"rounds,omitempty"`      // reaction rounds / cipher puzzles
-	Variant    string   `json:"variant,omitempty"`     // cipher: caesar | base64 | hex | binary
+	Rounds     int      `json:"rounds,omitempty"`      // reaction rounds / cipher puzzles / bazaar questions
+	Variant    string   `json:"variant,omitempty"`     // cipher: caesar | base64 | hex | binary; bazaar: estimate | fib | chain; mystery: museum | lab | liner
 	MinDelayMS int      `json:"min_delay_ms,omitempty"`
 	MaxDelayMS int      `json:"max_delay_ms,omitempty"`
 	Prompts    []string `json:"prompts,omitempty"` // talk: conversation starters
@@ -44,8 +44,11 @@ type MapDef struct {
 
 var (
 	mapIDRe    = regexp.MustCompile(`^[a-z0-9-]{2,24}$`)
-	knownKinds = map[string]bool{"reaction": true, "math": true, "typing": true, "cipher": true, "talk": true}
-	cipherVars = map[string]bool{"caesar": true, "base64": true, "hex": true, "binary": true}
+	knownKinds = map[string]bool{"reaction": true, "math": true, "typing": true, "cipher": true, "talk": true,
+		"bazaar": true, "mystery": true}
+	cipherVars  = map[string]bool{"caesar": true, "base64": true, "hex": true, "binary": true}
+	bazaarVars  = map[string]bool{"estimate": true, "fib": true, "chain": true}
+	mysteryVars = map[string]bool{"": true, "museum": true, "lab": true, "liner": true} // "" = random case
 )
 
 var defaultTalkPrompts = []string{
@@ -137,6 +140,34 @@ func (m *MissionDef) normalize() error {
 		}
 		if m.Kind == "talk" && len(m.Prompts) == 0 {
 			m.Prompts = defaultTalkPrompts
+		}
+	case "bazaar":
+		// DurationMS is the time limit of ONE question; Rounds is how many questions.
+		if !bazaarVars[m.Variant] {
+			return fmt.Errorf("bazaar variant must be estimate, fib or chain")
+		}
+		if m.Rounds == 0 {
+			m.Rounds = 5
+		}
+		if m.Rounds < 1 || m.Rounds > 8 {
+			return fmt.Errorf("rounds must be 1-8")
+		}
+		if m.DurationMS == 0 {
+			m.DurationMS = 25000
+		}
+		if m.DurationMS < 100 || m.DurationMS > 120000 {
+			return fmt.Errorf("duration_ms must be 100-120000")
+		}
+	case "mystery":
+		// DurationMS is the length of the interrogation phase; the other phases scale from it.
+		if !mysteryVars[m.Variant] {
+			return fmt.Errorf("mystery variant must be museum, lab or liner (or empty for a random case)")
+		}
+		if m.DurationMS == 0 {
+			m.DurationMS = 45000
+		}
+		if m.DurationMS < 100 || m.DurationMS > 300000 {
+			return fmt.Errorf("duration_ms must be 100-300000")
 		}
 	}
 	return nil

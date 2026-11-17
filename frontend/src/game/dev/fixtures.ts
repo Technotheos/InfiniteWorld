@@ -31,6 +31,24 @@ export const SPARK: MapInfo = {
   ],
 };
 
+export const BAZAAR: MapInfo = {
+  id: "brain-bazaar", name: "Brain Bazaar", tagline: "Bet on what you know. Bold bets pay double, bad ones sting.", theme: "bazaar", mode: "versus",
+  min_players: 1, max_players: 8,
+  missions: [
+    { kind: "bazaar", title: "Estimate It", brief: "Guess the number and stake coins on it." },
+    { kind: "bazaar", title: "Fact or Fib", brief: "Four statements, one is a fib." },
+    { kind: "bazaar", title: "Chain Reaction", brief: "One link in a chain of ideas is missing." },
+  ],
+};
+export const MYSTERY: MapInfo = {
+  id: "midnight-mystery", name: "Midnight Mystery", tagline: "A crime, a secret role for everyone, and one liar.", theme: "noir", mode: "versus",
+  min_players: 4, max_players: 6,
+  missions: [
+    { kind: "mystery", title: "Case 1: The Orion Diamond", brief: "Compare alibis, use your tools, then vote." },
+    { kind: "mystery", title: "Case 2: The Helix Serum", brief: "New case, new roles." },
+  ],
+};
+
 const P = (name: string, extra: Partial<PlayerView> = {}): PlayerView => ({
   name, ready: false, connected: true, spectator: false, host: false, score: 0, gain: 0, progress: 0, ...extra,
 });
@@ -113,4 +131,79 @@ export const SCENARIOS: Record<string, () => StateView> = {
     result: { mode: "coop", won: true, ranking: [
       { name: "neo", score: 3000, place: 1 }, { name: "trinity", score: 3000, place: 1 }, { name: "morpheus", score: 3000, place: 1 } ] },
   }),
+
+  "bazaar: fib (ask)": () => base(BAZAAR, "playing", {
+    players: crew([{ progress: 0.2 }, {}, { progress: 0.2 }]), mission: 1, deadline: inMs(15000), private: { answered: false, net: 150 },
+    brief: { index: 1, total: 3, kind: "bazaar", title: "Fact or Fib", brief: "" },
+    play: { kind: "bazaar", variant: "fib", round: 2, rounds: 5, status: "ask", event: "tip", prompt: "Spot the fib. Exactly one statement is false. Topic: Computing",
+      unit: "", locked: ["trinity"], net: { neo: 150, trinity: 300, morpheus: -50 }, struck: 3, hint: "Insider tip: one wrong answer has been struck out.",
+      options: ["HTTP is stateless by design.", "Base64 is a form of encryption.", "A hash function turns input of any size into a fixed-size output.", "Binary numbers use only the digits 0 and 1."] },
+  }),
+  "bazaar: estimate (between)": () => base(BAZAAR, "playing", {
+    players: crew(), mission: 0, deadline: inMs(3000), private: { answered: true, net: 240, bet: 2, value: 8850 },
+    brief: { index: 0, total: 3, kind: "bazaar", title: "Estimate It", brief: "" },
+    play: { kind: "bazaar", variant: "estimate", round: 1, rounds: 5, status: "between", event: "bull", prompt: "How tall is Mount Everest?", unit: "m",
+      locked: ["neo", "trinity", "morpheus"], net: { neo: 240, trinity: 50, morpheus: -200 }, answer: "8849 m",
+      explain: "Its height was re-measured in 2020 by Nepal and China: 8,848.86 m above sea level.",
+      results: [{ name: "neo", answer: "8850 m", bet: 2, delta: 240, right: true }, { name: "trinity", answer: "9500 m", bet: 1, delta: 50, right: true }, { name: "morpheus", answer: "5000 m", bet: 3, delta: -200, right: false }],
+      penalty: { name: "morpheus", text: "Type your next chat message like a pirate." } },
+  }),
+  "bazaar: chain": () => base(BAZAAR, "playing", {
+    players: crew(), mission: 2, deadline: inMs(18000), private: { answered: false, net: 0 },
+    brief: { index: 2, total: 3, kind: "bazaar", title: "Chain Reaction", brief: "" },
+    play: { kind: "bazaar", variant: "chain", round: 1, rounds: 5, status: "ask", event: "crash", prompt: "Password storage: which link is missing?", unit: "",
+      locked: [], net: { neo: 0, trinity: 0, morpheus: 0 }, chain: ["User sends password", "Server adds a salt", "?", "Compare with the stored hash"], blank: 2,
+      options: ["Email it back to the user", "Hash the salted password", "Store it in plain text", "Encrypt it with the user's own key"] },
+  }),
+  ...mysteryScenarios(),
 };
+
+function mysteryScenarios(): Record<string, () => StateView> {
+  const names = ["neo", "trinity", "morpheus", "cypher", "tank"];
+  const ps = () => names.map((n, i) => P(n, { host: i === 0 }));
+  const rooms = ["Vault", "Gallery", "Cafe", "Library", "Garden", "Security Office"];
+  const slots = ["9:00 PM", "9:30 PM", "10:00 PM", "10:30 PM"];
+  const jobs = ["Curator", "Guard", "Chef", "Archivist", "Florist", "Auditor", "Violinist", "Restorer"];
+  const coats = ["Red", "Blue", "Green", "Yellow", "Purple", "Orange", "White", "Teal"];
+  const claims = (): Record<string, { room: number; with: string[]; hidden?: boolean }[]> => ({
+    neo: [{ room: 1, with: ["trinity"] }, { room: 2, with: [] }, { room: 3, with: ["tank", "cypher"] }, { room: 4, with: [] }],
+    trinity: [{ room: 1, with: ["neo"] }, { room: 5, with: [] }, { room: 4, with: ["morpheus"] }, { room: 2, with: [] }],
+    morpheus: [{ room: 3, with: [] }, { room: 1, with: [] }, { room: 4, with: ["trinity"] }, { room: 5, with: [] }],
+    cypher: [{ room: 2, with: [] }, { room: 5, with: [] }, { room: 1, with: [], hidden: false }, { room: 2, with: ["tank"] }],
+    tank: [{ room: 2, with: ["cypher"] }, { room: 3, with: [] }, { room: 5, with: ["neo", "cypher"] }, { room: -1, with: [], hidden: true }],
+  });
+  const play = (phase: string, extra: Record<string, unknown> = {}) => ({
+    kind: "mystery", phase, theme: "museum", title: "The Orion Diamond",
+    setting: "The Aurelian Museum, night of the winter gala. The chandeliers dim, the music stops, and a silent alarm lights up in the Vault.",
+    crime: "The Orion Diamond has vanished from the Vault. The door log shows it was opened once, during the time marked below.",
+    rooms, slots, coats, jobs, crime_slot: 2,
+    suspects: names.map((name, i) => ({ name, coat: i, job: i })), voted: [], tips: [], feed: [], verified: {},
+    ...(phase === "intro" ? {} : { claims: claims() }), ...extra,
+  });
+  const st = (phase: string, p: Record<string, unknown>, priv: Record<string, unknown>) => () => base(MYSTERY, "playing", {
+    players: ps(), mission: 0, deadline: inMs(30000),
+    brief: { index: 0, total: 2, kind: "mystery", title: "Case 1: The Orion Diamond", brief: "" },
+    play: play(phase, p) as unknown as StateView["play"], private: priv,
+  });
+  const role = { role: "detective", inquiries: 2, log: [], press: 2, verify: 1, tip_used: false, vote: "" };
+  return {
+    "mystery: intro": st("intro", {}, role),
+    "mystery: alibi": st("alibi", {}, role),
+    "mystery: investigate": st("investigate", {
+      tips: [{ id: 1, coat: 2, text: "A figure in a green coat was seen slipping out of the Vault around 10:00 PM." }],
+      feed: [{ kind: "press", who: "tank", target: "morpheus", slot: 2 }, { kind: "verify", target: "trinity", slot: 0, text: "VERIFIED: trinity really was in the Gallery at 9:00 PM." }],
+      verified: { "trinity|0": "ok" },
+    }, { ...role, log: ["Camera in the Cafe at 10:00 PM: 1 person on screen."], inquiries: 1 }),
+    "mystery: vote": st("vote", { voted: ["trinity", "tank"] }, { ...role, role: "witness", saw: 2, vote: "" }),
+    "mystery: unmask": st("unmask", {
+      unmask: {
+        culprit: "morpheus", accused: "morpheus", caught: true,
+        roles: { neo: "suspect", trinity: "detective", morpheus: "culprit", cypher: "witness", tank: "suspect" },
+        truth: { neo: [1, 2, 3, 4], trinity: [1, 5, 4, 2], morpheus: [3, 1, 0, 5], cypher: [2, 5, 1, 2], tank: [2, 3, 5, 1] },
+        votes: { neo: "morpheus", trinity: "morpheus", morpheus: "tank", cypher: "morpheus", tank: "morpheus" },
+        why: "morpheus was really in the Vault at 10:00 PM, but their testimony put them in the Garden with trinity. They said they were elsewhere.",
+        lesson: "Alibis are testable. Cross-validate testimony.",
+      },
+    }, { ...role, role: "suspect" }),
+  };
+}

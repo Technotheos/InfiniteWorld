@@ -9,6 +9,8 @@ export const ICON_PATH: Record<MissionKind, string> = {
   typing: "M3 7h18v10H3zM6 10h2M10 10h2M14 10h2M7 14h10",
   cipher: "M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5zM12 15v2",
   talk: "M4 5h16v11H9l-5 4z",
+  bazaar: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v10M15 9.5c0-1.2-1.3-2-3-2s-3 .8-3 2 1.3 1.8 3 2 3 .8 3 2-1.3 2-3 2-3-.8-3-2",
+  mystery: "M10.5 3a7.5 7.5 0 1 0 0 15 7.5 7.5 0 0 0 0-15zM16 16l5 5",
 };
 
 export function MissionIcon({ kind, size = 22 }: { kind: MissionKind; size?: number }) {

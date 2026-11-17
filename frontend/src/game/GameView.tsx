@@ -3,13 +3,15 @@ import { Chat } from "./Chat";
 import { MapTrail } from "./MapTrail";
 import { Scoreboard } from "./Scoreboard";
 import { Avatar, MissionIcon, TimerBar, useCountdown } from "./ui";
+import { Bazaar } from "./missions/Bazaar";
+import { Mystery } from "./missions/Mystery";
 import { Cipher } from "./missions/Cipher";
 import { MathSprint } from "./missions/MathSprint";
 import { Reaction } from "./missions/Reaction";
 import { Talk } from "./missions/Talk";
 import { Typing } from "./missions/Typing";
 import type {
-  ChatMsg, CipherPlay, CipherPrivate, MathPrivate, MissionProps, ReactionPlay, ReactionPrivate, SendFn,
+  BazaarPlay, BazaarPrivate, ChatMsg, CipherPlay, MysteryPlay, MysteryPrivate, CipherPrivate, MathPrivate, MissionProps, ReactionPlay, ReactionPrivate, SendFn,
   StateView, TalkPlay, TalkPrivate, TypingPlay,
 } from "./types";
 import type { ConnStatus } from "./useGameSocket";
@@ -163,6 +165,8 @@ function Playing({ state, skew, send }: { state: StateView; skew: number; send: 
       case "math": body = <MathSprint {...common} play={play} priv={state.private as MathPrivate | undefined} />; break;
       case "typing": body = <Typing {...(common as Omit<MissionProps<TypingPlay>, "play" | "priv">)} play={play} priv={undefined} />; break;
       case "cipher": body = <Cipher {...(common as Omit<MissionProps<CipherPlay, CipherPrivate>, "play" | "priv">)} play={play} priv={state.private as CipherPrivate | undefined} />; break;
+      case "bazaar": body = <Bazaar {...common} play={play} priv={state.private as BazaarPrivate | undefined} />; break;
+      case "mystery": body = <Mystery {...common} play={play} priv={state.private as MysteryPrivate | undefined} />; break;
       case "talk": body = <Talk {...(common as Omit<MissionProps<TalkPlay, TalkPrivate>, "play" | "priv">)} play={play} priv={state.private as TalkPrivate | undefined} />; break;
     }
   }
