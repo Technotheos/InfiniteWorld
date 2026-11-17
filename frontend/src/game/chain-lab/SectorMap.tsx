@@ -42,10 +42,54 @@ export function SectorMap({
   );
 
   return (
+    <>
+    {/* Phones: a plain vertical mission list (the free-floating map needs width) */}
+    <ol className="md:hidden space-y-3" aria-label="Missions">
+      {MAP_ORDER.map((id, i) => {
+        const m = MISSIONS.find((x) => x.id === id);
+        const tz = TEASERS.find((x) => x.id === id);
+        const completed = id in done;
+        const title = m?.title ?? tz?.title ?? id;
+        return (
+          <li key={id} className="relative rounded-2xl border border-white/10 bg-[#0d0b16]/80 backdrop-blur-md p-4">
+            <div className="flex items-start gap-3">
+              <span
+                className={`mt-0.5 grid h-11 w-11 shrink-0 place-items-center rounded-full ${
+                  !m ? 'border border-dashed border-white/25 text-[#6d6880]' : completed ? 'bg-[#e9b872] text-[#1a1208]' : 'border border-[#9b8cff]/70 bg-[#9b8cff]/15 text-[#d6d0ff]'
+                }`}
+              >
+                {!m ? <Lock size={16} /> : completed ? <Check size={18} /> : <ShieldAlert size={18} />}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] font-mono tracking-[0.2em] text-[#9b8cff]">MISSION {i + 1}</div>
+                <div className="iw-display text-2xl leading-tight">{title}</div>
+                <div className="text-[11px] text-[#a49fb0]">{m ? `${m.date.replace('Reported ', '')} · ${m.loss}` : `${tz?.date} · ${tz?.loss}`}</div>
+                <p className="text-xs text-[#c9c4d2] mt-1.5">{m?.tagline ?? tz?.tagline}</p>
+                {m && (
+                  <div className="flex flex-wrap gap-2 mt-2 text-[11px] text-[#c9c4d2]">
+                    <span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10">{m.difficulty}</span>
+                    <span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10">{m.chain}</span>
+                    {completed && <span className="px-2.5 py-1 rounded-full border border-[#e9b872]/40 text-[#e9b872]">Charted · {done[id]} XP</span>}
+                  </div>
+                )}
+              </div>
+            </div>
+            {m ? (
+              <button onClick={() => onLaunch(id)} className={`mt-3 w-full py-3 rounded-xl bg-[#e9b872] text-[#1a1208] font-bold text-sm ${FOCUS}`}>
+                {completed ? 'Replay mission' : 'Launch mission'}
+              </button>
+            ) : (
+              <button disabled className="mt-3 w-full py-3 rounded-xl border border-white/10 text-sm text-[#6d6880]">Coming soon</button>
+            )}
+          </li>
+        );
+      })}
+    </ol>
+
     <div
       ref={boxRef}
       onPointerMove={onMove}
-      className="relative h-[560px] rounded-3xl overflow-hidden border border-white/10 bg-[#08060f]/70 backdrop-blur-md"
+      className="hidden md:block relative h-[560px] rounded-3xl overflow-hidden border border-white/10 bg-[#08060f]/70 backdrop-blur-md"
     >
       {/* Layer 1: astrolabe */}
       <div
@@ -176,6 +220,7 @@ export function SectorMap({
         )}
       </div>
     </div>
+    </>
   );
 }
 

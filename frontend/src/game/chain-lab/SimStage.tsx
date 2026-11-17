@@ -145,11 +145,11 @@ export function SimStage({
           tabIndex={0}
           role="img"
           aria-label={`3D replay of the ${mission.title} incident. Drag to rotate, or use the arrow keys. The captions below describe each step.`}
-          className={`block w-full aspect-[16/11] cursor-grab active:cursor-grabbing touch-none ${FOCUS}`}
+          className={`block w-full aspect-[4/3] sm:aspect-[16/11] cursor-grab active:cursor-grabbing touch-none ${FOCUS}`}
         />
 
         {/* Meters */}
-        <div className="pointer-events-none absolute left-3 top-3 space-y-2">
+        <div className="pointer-events-none absolute left-2 top-2 sm:left-3 sm:top-3 flex flex-col gap-1.5 sm:gap-2 scale-[.85] sm:scale-100 origin-top-left">
           {mission.meters.map((m) => (
             <div key={m.id} className="px-3 py-2 rounded-xl bg-[#06050b]/75 border border-white/10 backdrop-blur-md">
               <div className="text-[11px] text-[#a49fb0]">{m.label}</div>
@@ -162,7 +162,7 @@ export function SimStage({
 
         {/* Status */}
         <div
-          className={`pointer-events-none absolute right-3 top-3 max-w-[55%] px-3 py-2 rounded-xl border text-xs font-medium flex items-center gap-2 backdrop-blur-md ${toneClass}`}
+          className={`pointer-events-none absolute right-2 top-2 sm:right-3 sm:top-3 max-w-[48%] sm:max-w-[55%] px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl border text-[10px] sm:text-xs leading-snug font-medium flex items-center gap-2 backdrop-blur-md ${toneClass}`}
         >
           {status.tone === 'bad' ? <ShieldAlert size={14} /> : <ShieldCheck size={14} />}
           {status.text}
@@ -170,7 +170,7 @@ export function SimStage({
 
         {/* Caption */}
         <div
-          className="pointer-events-none absolute inset-x-0 bottom-0 px-4 pt-10 pb-3 bg-gradient-to-t from-[#06050b] via-[#06050b]/85 to-transparent"
+          className="pointer-events-none sm:absolute sm:inset-x-0 sm:bottom-0 px-4 pt-3 sm:pt-10 pb-3 bg-[#06050b] sm:bg-transparent sm:bg-gradient-to-t from-[#06050b] via-[#06050b]/85 to-transparent"
           aria-live="polite"
         >
           <div className="text-[11px] text-[#a49fb0]">
@@ -184,7 +184,7 @@ export function SimStage({
       </div>
 
       {/* Transport */}
-      <div className="mt-3 flex items-center gap-3">
+      <div className="mt-3 flex items-center gap-2 sm:gap-3">
         <button
           onClick={togglePlay}
           aria-label={playing ? 'Pause replay' : 'Play replay'}
@@ -215,7 +215,7 @@ export function SimStage({
           aria-label="Replay position"
           className={`flex-1 accent-[#e9b872] ${FOCUS}`}
         />
-        <span className="text-xs text-[#a49fb0] tabular-nums w-20 text-right">
+        <span className="hidden min-[400px]:block text-xs text-[#a49fb0] tabular-nums w-20 text-right">
           {t.toFixed(1)}s / {total.toFixed(1)}s
         </span>
       </div>
