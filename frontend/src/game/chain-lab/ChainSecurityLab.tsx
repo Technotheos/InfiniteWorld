@@ -8,6 +8,7 @@ import { SectorMap } from './SectorMap';
 import { MISSIONS } from './missions';
 import { loadProgress, rankFor, saveProgress, totalXp, type Progress } from './progress';
 import { FOCUS } from './ui';
+import { UserAvatar } from '../../components/Avatar';
 
 export interface ChainSecurityLabProps {
   username?: string | null;
@@ -66,7 +67,7 @@ export default function ChainSecurityLab({ username, onLeave, onDiscuss }: Chain
         style={{ animation: 'iw-drift 32s ease-in-out infinite reverse' }}
       />
 
-      <div className="relative z-10 mx-auto max-w-7xl px-5 sm:px-8 py-6 space-y-8">
+      <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-8 py-5 sm:py-6 space-y-6 sm:space-y-8">
         <header className="flex flex-wrap items-start justify-between gap-5">
           <div className="flex items-start gap-4">
             <button
@@ -77,7 +78,7 @@ export default function ChainSecurityLab({ username, onLeave, onDiscuss }: Chain
               <ArrowLeft size={18} />
             </button>
             <div>
-              <h1 className="iw-display text-4xl sm:text-5xl font-light tracking-wide leading-tight">
+              <h1 className="iw-display text-3xl sm:text-5xl font-light tracking-wide leading-tight">
                 Chain Security Lab
               </h1>
               <p className="text-sm text-[#a49fb0] mt-1 max-w-xl">
@@ -87,7 +88,9 @@ export default function ChainSecurityLab({ username, onLeave, onDiscuss }: Chain
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <div className="px-4 py-2 rounded-2xl border border-white/10 bg-black/40 backdrop-blur-md">
+            <div className="px-4 py-2 rounded-2xl border border-white/10 bg-black/40 backdrop-blur-md flex items-center gap-3">
+              <UserAvatar name={callsign} size={36} />
+              <div>
               <div className="text-[11px] text-[#a49fb0] capitalize">
                 {callsign} · {rank.title}
               </div>
@@ -106,6 +109,7 @@ export default function ChainSecurityLab({ username, onLeave, onDiscuss }: Chain
                   />
                 </div>
                 <span className="text-xs tabular-nums text-[#c9c4d2]">{xp} XP</span>
+              </div>
               </div>
             </div>
             {onDiscuss && (
