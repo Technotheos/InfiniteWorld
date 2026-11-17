@@ -1,3 +1,4 @@
+import { UserAvatar } from '../components/Avatar';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowLeft, Search } from 'lucide-react';
@@ -260,6 +261,7 @@ export default function Admin({ token, username, onBack, onAuthExpired }: AdminP
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
+                              <UserAvatar name={u.username} size={32} />
                               <span className="truncate text-sm font-semibold text-[#eee9dc]">@{u.username}</span>
                               {mine && <span className="text-[10px] uppercase tracking-wider text-[#a49fb0]">you</span>}
                               <RoleBadge role={u.role} />

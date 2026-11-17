@@ -161,3 +161,10 @@
   .bz-event, .bz-reveal, .bz-results li, .bz-penalty, .my-unmask, .my-feed li { animation: none; }
   .my-role-inner { transition: none; }
 }
+
+/* ---- profile pictures in the mystery room + game chat ---- */
+.my-who { position: relative; display: inline-flex; flex: none; }
+.my-who .my-pin { position: absolute; right: -3px; bottom: -3px; width: 12px; height: 12px; border: 2px solid var(--bg1); }
+.my-who-inline { display: inline-flex; align-items: center; gap: 6px; }
+.rg-chat-log .rg-msg { display: flex; gap: 8px; align-items: flex-start; }
+.rg-chat-log .rg-msg > span { min-width: 0; padding-top: 2px; }

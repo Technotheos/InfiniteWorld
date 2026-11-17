@@ -88,11 +88,11 @@ export function SlugBasket() {
   };
 
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#0d0b16]/75 backdrop-blur-md p-6 sm:p-8">
+    <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#0d0b16]/75 backdrop-blur-md p-4 sm:p-8">
       <div aria-hidden="true" className="absolute -left-16 -top-16 h-64 w-64 rounded-full bg-cyan-400/10 blur-[90px] pointer-events-none" />
       <div aria-hidden="true" className="absolute -right-16 -bottom-20 h-64 w-64 rounded-full bg-violet-500/15 blur-[90px] pointer-events-none" />
-      <div className="relative grid lg:grid-cols-2 gap-8 items-center">
-        <div>
+      <div className="relative grid lg:grid-cols-2 gap-5 lg:gap-8 items-center">
+        <div className="order-2 lg:order-1 min-w-0">
           <div className="flex flex-wrap gap-2 text-[11px] text-[#c9c4d2]">
             <span className="px-2.5 py-1 rounded-full border border-cyan-300/40 text-cyan-200">Companions</span>
             <span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10">{inCount} of {ORDER.length} in the basket</span>
@@ -128,19 +128,19 @@ export function SlugBasket() {
             })}
           </ul>
 
-          <div className="mt-5 flex flex-wrap gap-3">
+          <div className="mt-5 grid grid-cols-1 min-[420px]:grid-cols-2 sm:flex sm:flex-wrap gap-3">
             <button type="button" onClick={m.releaseAll} disabled={m.out.length === ORDER.length}
-              className={`px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-300 to-violet-400 text-[#04050d] font-bold text-sm hover:brightness-110 disabled:opacity-40 transition flex items-center gap-2 ${FOCUS}`}>
+              className={`px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-300 to-violet-400 text-[#04050d] font-bold text-sm hover:brightness-110 disabled:opacity-40 transition flex items-center justify-center gap-2 ${FOCUS}`}>
               Let them all out <ArrowUpRight size={15} />
             </button>
             <button type="button" onClick={m.collectAll} disabled={m.out.length === 0}
-              className={`px-5 py-2.5 rounded-xl border border-white/10 text-sm text-[#c9c4d2] hover:text-[#eee9dc] hover:bg-white/5 disabled:opacity-40 transition flex items-center gap-2 ${FOCUS}`}>
+              className={`px-5 py-2.5 rounded-xl border border-white/10 text-sm text-[#c9c4d2] hover:text-[#eee9dc] hover:bg-white/5 disabled:opacity-40 transition flex items-center justify-center gap-2 ${FOCUS}`}>
               <PackageOpen size={15} /> Collect all
             </button>
           </div>
         </div>
 
-        <div className="sb-stage" onPointerMove={track} onPointerLeave={() => setLook({ x: 0, y: 0 })}
+        <div className="sb-stage order-1 lg:order-2" onPointerMove={track} onPointerLeave={() => setLook({ x: 0, y: 0 })}
           style={{ ["--lx"]: look.x, ["--ly"]: look.y } as CSSProperties}>
           <GlassBack />
           {ORDER.map((id) => {

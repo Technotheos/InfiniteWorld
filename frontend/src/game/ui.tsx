@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { MissionKind } from "./types";
+import { publicAvatarUrl } from "../components/profileApi";
 
 // ---- icons (24x24 paths, no icon library needed) ---------------------------
 
@@ -31,10 +32,18 @@ function hue(name: string): number {
 }
 
 export function Avatar({ name, size = 34 }: { name: string; size?: number }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [name]);
+  const showImage = Boolean(name) && !failed;
   return (
     <span className="rg-avatar" aria-hidden="true"
       style={{ width: size, height: size, fontSize: size * 0.42, background: `linear-gradient(135deg, hsl(${hue(name)} 70% 58%), hsl(${(hue(name) + 50) % 360} 70% 42%))` }}>
-      {name.slice(0, 1).toUpperCase()}
+      {showImage ? (
+        <img src={publicAvatarUrl(name)} alt="" loading="lazy" draggable={false} onError={() => setFailed(true)}
+          style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover", display: "block" }} />
+      ) : (
+        name.slice(0, 1).toUpperCase()
+      )}
     </span>
   );
 }
