@@ -11,6 +11,8 @@ Included rooms (`backend-go/maps/`):
 | `arena` Quick Arena     | versus, 1-8 | Reflex (reaction), Math Sprint, Type Storm                                  |
 | `cipher-lab` Cipher Lab | versus, 1-8 | Caesar, Base64, Hex, Binary (each teaches what the encoding really is)      |
 | `spark` Social Spark    | co-op, 2-6  | 3 conversation missions; the team wins only if everyone agrees each is done |
+| `brain-bazaar` Brain Bazaar | versus, 1-8 | Estimate It, Fact or Fib, Chain Reaction: bet coins on your own answers      |
+| `midnight-mystery` Midnight Mystery | versus, 4-6 | Two generated 3D crime cases with secret roles (culprit, detective, witness, trickster) |
 |                         |             |                                                                             |
 
 ## Wire it up
@@ -64,12 +66,30 @@ Drop `maps/my-room.json`. Unknown fields and bad values fail at startup, not mid
   "missions": [ { "kind": "math", "title": "Fast Maths", "brief": "...", "duration_ms": 20000 },
                 { "kind": "cipher", "variant": "hex", "title": "Hex", "brief": "...", "rounds": 3, "duration_ms": 25000 } ] }
 ```
-Kinds: `reaction` `math` `typing` `cipher` `talk`. Themes: `nebula` `matrix` `aurora`.
+Kinds: `reaction` `math` `typing` `cipher` `talk` `bazaar` `mystery`. Themes: `nebula` `matrix` `aurora` `bazaar` `noir`.
 
 ## Add a mission kind
 
 1. Go: implement the `Mission` interface in `game_missions.go` (Start, Handle, Tick, Public, Private, Raw, Stats, Note) and register it in `newMission` and `knownKinds`.
 2. React: add `missions/YourMission.tsx` and one `case` in `GameView.tsx`; add its types to `types.ts`.
+
+## Brain Bazaar and Midnight Mystery
+
+Both are ordinary mission kinds (`game_bazaar.go`, `game_mystery.go`) with 3D scenes in `frontend/src/game/three/`
+(three.js, loaded lazily the first time one of these rooms opens; no WebGL means the normal UI still works).
+
+**bazaar** (`variant`: `estimate` | `fib` | `chain`, `rounds` = questions, `duration_ms` = time per question).
+`act {op:"answer", value, bet}` with `bet` 1-3 (stake 50/100/200). Estimate: bullseye pays 2x, close 1x, far off loses the
+stake. Fib/chain: right pays the stake plus a speed bonus, wrong loses it. Random market events: bull (wins x2),
+crash (losses x2), tip (a hint). The biggest loser of a round gets a Wacky Penalty. Questions live in `game_bazaar_bank.go`.
+
+**mystery** (`variant`: `museum` | `lab` | `liner`, empty = random; `duration_ms` = length of the interrogation phase).
+Phases: intro > alibi > investigate > interrogate > vote > unmask. The case is generated per game and `solvable()` proves
+it can be cracked by logic: honest players' testimony never contradicts itself, while the culprit's lie about the crime
+window names two innocents who each contradict it. Actions (`act`): `inquire {room,slot}` (private camera reading),
+`verify {target,slot}` (detective only, public), `tip {target?}` (witness: true, culprit/trickster: planted), `press {target,slot}`,
+`vote {target}`. Roles are private (`state.private`); the truth only appears in `play.unmask` after the vote.
+New cases: add a theme to `mysteryThemes` in `game_mystery.go`.
 
 ## What is enforced server-side
 
@@ -89,7 +109,7 @@ scores live in one goroutine per room (no locks, no shared state) · 12 actions/
 ## Tests
 
 ```bash
-cd backend-go && go test -race ./...                        # 17 tests: rules per mission, bots playing a full game, auth, limits
+cd backend-go && go test -race ./...                        # incl. game_rooms_new_test.go (bazaar + mystery): rules per mission, bots playing a full game, auth, limits
 cd frontend   && npx vite-node src/game/dev/smoke.tsx       # renders all 14 screens and checks their content
 ```
 
