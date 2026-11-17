@@ -35,3 +35,5 @@
 @keyframes ail-dash{to{stroke-dashoffset:-24}}
 @keyframes ail-flow{to{background-position:200% 0}}
 @media(prefers-reduced-motion:reduce){.ail *{animation:none!important}}
+
+@media(max-width:640px){.ail-wrap{padding:14px 12px 90px}.ail-card{padding:14px;border-radius:16px}.ail-tabs{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}.ail-tab{white-space:nowrap;flex:none}.ail-btn{padding:10px 14px}}
