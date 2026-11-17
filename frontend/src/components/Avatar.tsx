@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { publicAvatarUrl } from './profileApi';
 
 interface AvatarProps {
   name: string;
@@ -27,4 +28,10 @@ export function Avatar({ name, src, size = 40, className = '' }: AvatarProps) {
       )}
     </div>
   );
+}
+
+
+/** Avatar for any user: loads their public profile picture by username. */
+export function UserAvatar({ name, size = 40, className = '' }: { name: string; size?: number; className?: string }) {
+  return <Avatar name={name} src={name ? publicAvatarUrl(name) : null} size={size} className={className} />;
 }
