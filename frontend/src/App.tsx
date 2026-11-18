@@ -13,6 +13,8 @@ import Admin from './pages/Admin';
 import { Logo } from './components/Logo';
 import { UserAvatar } from './components/Avatar';
 import { AuthExpiredError, avatarUrl, getMe } from './components/profileApi';
+import { SocialProvider, useSocial } from './social/SocialContext';
+import { UserName } from './social/UserName';
 import { clearSession, getSession, logoutRemote, refreshSession, setSession, subscribe, type Session } from './session';
 
 const AI_CHAT_ROOM = 'ai-deep-dive';
@@ -20,7 +22,16 @@ const AI_CHAT_ROOM = 'ai-deep-dive';
 // The live chat room that goes with the Chain Security Lab.
 const LAB_CHAT_ROOM = 'zeroday-websec';
 
+/** The social layer (friends, presence, profile cards, DMs) wraps the whole signed-in app. */
 export default function App() {
+  return (
+    <SocialProvider>
+      <AppInner />
+    </SocialProvider>
+  );
+}
+
+function AppInner() {
   // The session lives in memory (see session.ts). `booting` is true until we have
   // asked the server whether the refresh cookie still holds a valid login.
   const [session, setSessionState] = useState<Session | null>(getSession());
@@ -46,6 +57,21 @@ export default function App() {
   const [avatarVersion, setAvatarVersion] = useState(0);
 
   useEffect(() => subscribe(setSessionState), []);
+
+  // The "Join" shortcut on friends and profile cards jumps straight into a room.
+  const { setJoinHandler } = useSocial();
+  useEffect(() => {
+    setJoinHandler((code) => {
+      setSelectedRoom(null);
+      setSettingsOpen(false);
+      setAdminOpen(false);
+      setLabOpen(false);
+      setAiOpen(false);
+      setGameCode(code);
+      setPlayMode('room');
+    });
+    return () => setJoinHandler(null);
+  }, [setJoinHandler]);
 
   // On load, resume the login from the HttpOnly refresh cookie (if there is one).
   useEffect(() => {
@@ -211,7 +237,7 @@ export default function App() {
                     mine ? 'bg-[#e9b872]/15 border-[#e9b872]/30 rounded-br-md' : 'bg-white/5 border-white/10 rounded-bl-md'
                   }`}
                 >
-                  <span className={`text-xs font-semibold ${mine ? 'text-[#e9b872]' : 'text-cyan-300'}`}>{msg.sender}</span>
+                  <UserName name={String(msg.sender ?? '?')} className={`text-xs font-semibold ${mine ? 'text-[#e9b872]' : 'text-cyan-300'}`} />
                   <p className="text-sm text-slate-100 mt-0.5 break-words">{msg.content}</p>
                 </div>
               </div>
