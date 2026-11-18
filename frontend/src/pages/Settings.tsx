@@ -15,6 +15,7 @@ import {
 } from '../components/profileApi';
 import { usePrefs, type Prefs } from '../hooks/usePrefs';
 import { loadProgress, rankFor, totalXp } from '../game/chain-lab';
+import { getPrivacy, savePrivacy, type Policy, type Privacy } from '../social/socialApi';
 
 /* -------------------------------------------------------------------------- */
 /*  Props                                                                     */
@@ -69,6 +70,26 @@ function Row({ label, hint, children, stack = false }: { label: string; hint?: s
       </div>
       {children && <div className={stack ? '' : 'shrink-0'}>{children}</div>}
     </div>
+  );
+}
+
+const POLICY_LABEL: Record<Policy, string> = { everyone: 'Everyone', friends: 'Friends only', nobody: 'Nobody' };
+
+function PolicySelect({ value, label, onChange }: { value: Policy; label: string; onChange: (v: Policy) => void }) {
+  return (
+    <select
+      aria-label={label}
+      value={value}
+      onChange={(e) => onChange(e.target.value as Policy)}
+      style={{ colorScheme: 'dark' }}
+      className={`rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-[#eee9dc] ${FOCUS}`}
+    >
+      {(Object.keys(POLICY_LABEL) as Policy[]).map((p) => (
+        <option key={p} value={p}>
+          {POLICY_LABEL[p]}
+        </option>
+      ))}
+    </select>
   );
 }
 
@@ -156,6 +177,9 @@ export default function Settings({ token, username, onBack, onLogout, onSessionC
   const [me, setMe] = useState<Profile | null>(null);
   const [loadError, setLoadError] = useState('');
 
+  const [privacy, setPrivacy] = useState<Privacy | null>(null);
+  const [privacyError, setPrivacyError] = useState('');
+
   const [bio, setBio] = useState('');
   const [savingBio, setSavingBio] = useState(false);
 
@@ -227,6 +251,28 @@ export default function Settings({ token, username, onBack, onLogout, onSessionC
     // Load once on open; later changes update `me` directly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /* ---- privacy ---- */
+
+  useEffect(() => {
+    getPrivacy(token)
+      .then(setPrivacy)
+      .catch((err) => setPrivacyError(explain(err, 'Could not load your privacy settings.')));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** Optimistic: the switch moves at once and snaps back if the server says no. */
+  const changePrivacy = (patch: Partial<Privacy>) => {
+    const before = privacy;
+    setPrivacy((p) => (p ? { ...p, ...patch } : p));
+    setPrivacyError('');
+    savePrivacy(token, patch)
+      .then(setPrivacy)
+      .catch((err) => {
+        setPrivacy(before);
+        setPrivacyError(explain(err, 'Could not save your privacy settings.'));
+      });
+  };
 
   /* ---- photo ---- */
 
@@ -598,6 +644,28 @@ export default function Settings({ token, username, onBack, onLogout, onSessionC
                 <Switch on={prefs[r.key]} onChange={(v) => setPref(r.key, v)} label={r.label} />
               </Row>
             ))}
+          </Section>
+        </motion.div>
+
+        {/* Privacy */}
+        <motion.div {...rise(2)}>
+          <Section title="Privacy" hint="Friends are people you follow who follow you back.">
+            {!privacy ? (
+              <Row label="Loading…" />
+            ) : (
+              <>
+                <Row label="Hide my presence" hint="Friends will see you as offline and will not see which room you are in.">
+                  <Switch on={privacy.hide_presence} onChange={(v) => changePrivacy({ hide_presence: v })} label="Hide my presence" />
+                </Row>
+                <Row label="Who can message me" hint="Applies to new direct messages.">
+                  <PolicySelect value={privacy.dm} label="Who can message me" onChange={(v) => changePrivacy({ dm: v })} />
+                </Row>
+                <Row label="Who can find me" hint="Whether you show up when someone searches by name.">
+                  <PolicySelect value={privacy.find} label="Who can find me" onChange={(v) => changePrivacy({ find: v })} />
+                </Row>
+              </>
+            )}
+            {privacyError && <div role="alert" className="px-5 py-3 text-xs text-[#ffc9c2] sm:px-6">{privacyError}</div>}
           </Section>
         </motion.div>
 

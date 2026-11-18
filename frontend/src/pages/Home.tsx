@@ -14,6 +14,7 @@ import type { EngineStatus } from '../hooks/useEngineStatus';
 import { MAP_ORDER, MISSIONS, NODE_POS, loadProgress, rankFor, totalXp } from '../game/chain-lab';
 import { SlugBasket } from '../mascot';
 import { RoomPortals } from '../components/RoomPortals';
+import { FriendsPanel } from '../social/FriendsPanel';
 
 /* -------------------------------------------------------------------------- */
 /*  Props                                                                     */
@@ -494,6 +495,11 @@ export default function Home({
             </div>
             <RoomPortals onPlayMap={onPlayMap} onJoinCode={onJoinCode} disabled={warping} warp={enter} />
           </motion.section>
+
+          {/* Friends and presence */}
+          <motion.div {...rise(5)}>
+            <FriendsPanel />
+          </motion.div>
 
           {/* Chat rooms */}
           <motion.section {...rise(5)} aria-label="Chat rooms" ref={chatRef} className="space-y-4 scroll-mt-8">
