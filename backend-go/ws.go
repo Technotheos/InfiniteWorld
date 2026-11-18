@@ -52,6 +52,9 @@ func checkOrigin(r *http.Request) bool { return originAllowed(r) }
 // canJoinRoom is the hook for room-level authorization (membership, invites,
 // ownership...). Right now any authenticated user may join any valid room.
 func canJoinRoom(username, roomID string) bool {
+	if isDMRoom(roomID) { // direct messages: only the two people in them (dm.go)
+		return dmMayJoin(username, roomID)
+	}
 	return true
 }
 
