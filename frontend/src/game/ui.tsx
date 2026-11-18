@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { MissionKind } from "./types";
 import { publicAvatarUrl } from "../components/profileApi";
+import { useSocialOptional } from "../social/socialCore";
+import "../social/social.css";
 
 // ---- icons (24x24 paths, no icon library needed) ---------------------------
 
@@ -35,7 +37,8 @@ export function Avatar({ name, size = 34 }: { name: string; size?: number }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [name]);
   const showImage = Boolean(name) && !failed;
-  return (
+  const social = useSocialOptional();
+  const face = (
     <span className="rg-avatar" aria-hidden="true"
       style={{ width: size, height: size, fontSize: size * 0.42, background: `linear-gradient(135deg, hsl(${hue(name)} 70% 58%), hsl(${(hue(name) + 50) % 360} 70% 42%))` }}>
       {showImage ? (
@@ -45,6 +48,12 @@ export function Avatar({ name, size = 34 }: { name: string; size?: number }) {
         name.slice(0, 1).toUpperCase()
       )}
     </span>
+  );
+  if (!social || !name) return face;
+  return (
+    <button type="button" className="iw-avatar-btn" onClick={() => social.openCard(name)} aria-label={`View ${name}'s profile`}>
+      {face}
+    </button>
   );
 }
 

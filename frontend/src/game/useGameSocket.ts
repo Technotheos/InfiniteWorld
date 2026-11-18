@@ -7,12 +7,15 @@ export type ConnStatus = "connecting" | "open" | "reconnecting" | "closed";
 
 const MAX_RETRIES = 5;
 // 1008 = policy violation (token expired / rate limit), 1013 = try again later (room full or closed)
+const TYPING_MS = 3000;
 const NO_RETRY = new Set([1000, 1008, 1013]);
 
 export interface GameSocket {
   status: ConnStatus;
   state: StateView | null;
   chat: ChatMsg[];
+  /** names of other players who are typing right now */
+  typing: string[];
   /** server clock minus local clock, in ms; add it to Date.now() to get server time */
   skew: number;
   closeReason: string | null;
@@ -24,6 +27,7 @@ export function useGameSocket(code: string, token: string): GameSocket {
   const [status, setStatus] = useState<ConnStatus>("connecting");
   const [state, setState] = useState<StateView | null>(null);
   const [chat, setChat] = useState<ChatMsg[]>([]);
+  const [typing, setTyping] = useState<string[]>([]);
   const [skew, setSkew] = useState(0);
   const [closeReason, setCloseReason] = useState<string | null>(null);
   const [authExpired, setAuthExpired] = useState(false);
@@ -40,8 +44,21 @@ export function useGameSocket(code: string, token: string): GameSocket {
     let timer: number | undefined;
     setState(null);
     setChat([]);
+    setTyping([]);
     setCloseReason(null);
     setAuthExpired(false);
+
+    // "x is typing..." entries expire by themselves, so a lost "stopped" message never sticks.
+    const typingUntil = new Map<string, number>();
+    const syncTyping = () => {
+      const now = Date.now();
+      for (const [n, t] of typingUntil) if (t <= now) typingUntil.delete(n);
+      setTyping([...typingUntil.keys()]);
+    };
+    const dropTyping = (n: string) => {
+      if (typingUntil.delete(n)) syncTyping();
+    };
+    const typingTimer = window.setInterval(() => typingUntil.size && syncTyping(), 500);
 
     const connect = () => {
       setStatus(retries ? "reconnecting" : "connecting");
@@ -67,7 +84,24 @@ export function useGameSocket(code: string, token: string): GameSocket {
         } else if (msg.type === "hello") {
           setChat(((msg.payload as Hello).chat ?? []).slice());
         } else if (msg.type === "chat") {
-          setChat((c) => [...c.slice(-49), msg.payload as ChatMsg]);
+          const m = msg.payload as ChatMsg;
+          setChat((c) => [...c.slice(-49), m]);
+          dropTyping(m.from); // sending a message ends "typing..."
+        } else if (msg.type === "react") {
+          const r = msg.payload as { id: number; emoji: string; names: string[] | null };
+          setChat((c) =>
+            c.map((m) => {
+              if (m.id !== r.id) return m;
+              const reacts = { ...(m.reacts ?? {}) };
+              if (r.names && r.names.length) reacts[r.emoji] = r.names;
+              else delete reacts[r.emoji];
+              return { ...m, reacts };
+            }),
+          );
+        } else if (msg.type === "typing") {
+          const who = (msg.payload as { name: string }).name;
+          typingUntil.set(who, Date.now() + TYPING_MS);
+          syncTyping();
         }
       };
       ws.onclose = (ev: CloseEvent) => {
@@ -114,6 +148,7 @@ export function useGameSocket(code: string, token: string): GameSocket {
 
     return () => {
       unsubscribe();
+      window.clearInterval(typingTimer);
       stopped = true;
       window.clearTimeout(timer);
       wsRef.current?.close();
@@ -126,5 +161,5 @@ export function useGameSocket(code: string, token: string): GameSocket {
     if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type, payload }));
   }, []);
 
-  return { status, state, chat, skew, closeReason, authExpired, send };
+  return { status, state, chat, typing, skew, closeReason, authExpired, send };
 }

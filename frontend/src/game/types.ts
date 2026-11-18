@@ -234,10 +234,17 @@ export interface StateView {
 }
 
 export interface ChatMsg {
+  /** Per-room message id; reactions point at it. Absent only in hand-written fixtures. */
+  id?: number;
   from: string;
   text: string;
   at: number;
+  /** emoji -> names of everyone who reacted */
+  reacts?: Record<string, string[]>;
 }
+
+/** The reactions the server accepts. Keep in sync with allowedReactions in game_room.go. */
+export const REACTIONS = ["👍", "😂", "😮", "🔥", "🎉", "👏"] as const;
 
 export interface Hello {
   protocol: number;
@@ -245,7 +252,7 @@ export interface Hello {
   chat: ChatMsg[] | null;
 }
 
-export type ClientMsgType = "ready" | "start" | "chat" | "act" | "rematch" | "reauth";
+export type ClientMsgType = "ready" | "start" | "chat" | "act" | "rematch" | "reauth" | "react" | "typing";
 export type SendFn = (type: ClientMsgType, payload?: unknown) => void;
 
 export interface MissionProps<P, Q = unknown> {

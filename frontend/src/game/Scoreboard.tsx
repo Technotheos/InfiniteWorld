@@ -1,4 +1,5 @@
 import { Avatar, useCountUp } from "./ui";
+import { UserName } from "../social/UserName";
 import type { Phase, PlayerView } from "./types";
 
 function Row({ p, you, phase, max }: { p: PlayerView; you: string; phase: Phase; max: number }) {
@@ -10,7 +11,7 @@ function Row({ p, you, phase, max }: { p: PlayerView; you: string; phase: Phase;
       <div className="rg-row-main">
         <div className="rg-row-top">
           <span className="rg-row-name">
-            {p.name}
+            <UserName name={p.name} />
             {p.name === you && <em> (you)</em>}
             {p.host && <span className="rg-crown" title="Host">★</span>}
           </span>

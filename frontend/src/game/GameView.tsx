@@ -19,6 +19,7 @@ import type { ConnStatus } from "./useGameSocket";
 export interface GameViewProps {
   state: StateView;
   chat: ChatMsg[];
+  typing?: string[];
   status: ConnStatus;
   skew: number;
   send: SendFn;
@@ -26,7 +27,7 @@ export interface GameViewProps {
 }
 
 /** Pure view of one room state. No sockets in here, so it is easy to preview and test. */
-export function GameView({ state, chat, status, skew, send, onLeave }: GameViewProps) {
+export function GameView({ state, chat, typing = [], status, skew, send, onLeave }: GameViewProps) {
   const [copied, setCopied] = useState(false);
   const copy = () => {
     void navigator.clipboard?.writeText(state.code).then(() => {
@@ -62,7 +63,7 @@ export function GameView({ state, chat, status, skew, send, onLeave }: GameViewP
         </section>
         <aside className="rg-side">
           <Scoreboard players={state.players} you={state.you} phase={state.phase} />
-          <Chat messages={chat} you={state.you} send={send} />
+          <Chat messages={chat} you={state.you} send={send} typing={typing} />
         </aside>
       </main>
     </div>
