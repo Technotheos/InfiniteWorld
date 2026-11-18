@@ -118,6 +118,19 @@ func (h *GameHub) quick(def *MapDef) (*GameRoom, error) {
 	return h.newRoomLocked(def, true)
 }
 
+// liveCounts returns how many players are connected per map id (for the portals).
+func (h *GameHub) liveCounts() map[string]int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	out := map[string]int{}
+	for _, r := range h.rooms {
+		if n := int(r.live.Load()); n > 0 {
+			out[r.def.ID] += n
+		}
+	}
+	return out
+}
+
 // ---- HTTP ------------------------------------------------------------------
 
 func (h *GameHub) handleMaps(w http.ResponseWriter, r *http.Request) {

@@ -6,7 +6,7 @@ import "encoding/json"
 // Envelope; every client message is a ClientMsg. Both are JSON text frames.
 //
 //	server -> client: {"v":1,"type":"hello|state|chat|error","payload":{...}}
-//	client -> server: {"type":"ready|start|chat|act|rematch","payload":{...}}
+//	client -> server: {"type":"ready|start|chat|act|rematch|react|typing","payload":{...}}
 //
 // The server owns all game state. Clients only send intentions ("I clicked",
 // "my typed text is ..."); the server decides what they mean and what they score.
@@ -109,9 +109,23 @@ type StateView struct {
 }
 
 type ChatMsg struct {
-	From string `json:"from"`
-	Text string `json:"text"`
-	At   int64  `json:"at"`
+	ID    int                 `json:"id"` // per-room, so reactions can point at a message
+	From  string              `json:"from"`
+	Text  string              `json:"text"`
+	At    int64               `json:"at"`
+	Reacts map[string][]string `json:"reacts,omitempty"` // emoji -> who reacted
+}
+
+// ReactView is broadcast whenever someone toggles a reaction.
+type ReactView struct {
+	ID    int      `json:"id"`
+	Emoji string   `json:"emoji"`
+	Names []string `json:"names"` // everyone who now has this emoji on the message
+}
+
+// TypingView says who is typing in the room chat.
+type TypingView struct {
+	Name string `json:"name"`
 }
 
 type HelloView struct {
