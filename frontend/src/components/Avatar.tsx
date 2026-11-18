@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { publicAvatarUrl } from './profileApi';
+import { useSocialOptional } from '../social/socialCore';
+import '../social/social.css';
 
 interface AvatarProps {
   name: string;
@@ -32,6 +34,24 @@ export function Avatar({ name, src, size = 40, className = '' }: AvatarProps) {
 
 
 /** Avatar for any user: loads their public profile picture by username. */
-export function UserAvatar({ name, size = 40, className = '' }: { name: string; size?: number; className?: string }) {
-  return <Avatar name={name} src={name ? publicAvatarUrl(name) : null} size={size} className={className} />;
+export function UserAvatar({
+  name,
+  size = 40,
+  className = '',
+  clickable = true,
+}: {
+  name: string;
+  size?: number;
+  className?: string;
+  /** Tapping opens the player's profile card (when the social layer is mounted). */
+  clickable?: boolean;
+}) {
+  const social = useSocialOptional();
+  const img = <Avatar name={name} src={name ? publicAvatarUrl(name) : null} size={size} className={className} />;
+  if (!social || !clickable || !name) return img;
+  return (
+    <button type="button" className="iw-avatar-btn" onClick={() => social.openCard(name)} aria-label={`View ${name}'s profile`}>
+      {img}
+    </button>
+  );
 }
