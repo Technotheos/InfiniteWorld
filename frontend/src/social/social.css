@@ -1,0 +1,33 @@
+/* Tap targets that look like the text/avatar they replace. */
+.iw-name-btn {
+  background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit;
+  cursor: pointer; text-align: inherit; border-radius: 4px;
+}
+.iw-name-btn:hover { text-decoration: underline; text-underline-offset: 3px; }
+.iw-name-btn:focus-visible, .iw-avatar-btn:focus-visible { outline: 2px solid #e9b872; outline-offset: 2px; }
+.iw-avatar-btn {
+  background: none; border: 0; padding: 0; margin: 0; cursor: pointer;
+  border-radius: 9999px; line-height: 0; flex-shrink: 0; display: inline-block;
+}
+.iw-avatar-btn:hover { filter: brightness(1.12); }
+
+/* Chat reactions + typing */
+.iw-reacts { display: flex; flex-wrap: wrap; gap: 4px; margin: 2px 0 0 32px; }
+.iw-react {
+  display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; font-size: .78rem;
+  border-radius: 9999px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.05);
+  color: inherit; cursor: pointer;
+}
+.iw-react.mine { border-color: #e9b872; background: rgba(233,184,114,.16); }
+.iw-picker {
+  display: inline-flex; gap: 2px; margin: 2px 0 0 32px; padding: 3px 6px; border-radius: 9999px;
+  border: 1px solid rgba(255,255,255,.14); background: rgba(13,11,22,.95);
+}
+.iw-picker button { background: none; border: 0; font-size: 1.15rem; padding: 2px 4px; cursor: pointer; border-radius: 8px; }
+.iw-picker button:hover { background: rgba(255,255,255,.1); }
+.iw-msg-tap { background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.iw-typing { min-height: 1.1rem; font-size: .78rem; opacity: .7; font-style: italic; }
+@media (prefers-reduced-motion: no-preference) {
+  .iw-typing span { animation: iw-blink 1.2s ease-in-out infinite; }
+  @keyframes iw-blink { 50% { opacity: .35; } }
+}
