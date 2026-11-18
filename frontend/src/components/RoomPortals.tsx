@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowUpRight, KeyRound, Loader2, Lock } from 'lucide-react';
 import '../styles/portals.css';
+import { useSocialOptional } from '../social/socialCore';
 
 /* -------------------------------------------------------------------------- */
 /*  The five game rooms as sci-fi "portals". Each card enters its room        */
@@ -154,6 +155,7 @@ export function RoomPortals({
   warp: (go: () => Promise<void> | void) => Promise<void>;
 }) {
   const reduce = useReducedMotion();
+  const counts = useSocialOptional()?.counts ?? {};
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [code, setCode] = useState('');
@@ -208,7 +210,7 @@ export function RoomPortals({
               >
                 <div className="pt-head">
                   <span className="pt-code">{p.code}</span>
-                  <span className="pt-live"><i /> OPEN</span>
+                  <span className="pt-live"><i /> {(counts[p.id] ?? 0) > 0 ? `${counts[p.id]} playing` : 'OPEN'}</span>
                 </div>
 
                 <div className="pt-core">
