@@ -64,6 +64,14 @@ func main() {
 	mux.HandleFunc("/api/me/username", UsernameHandler)
 	mux.HandleFunc("/api/me/password", PasswordHandler)
 	mux.HandleFunc("/api/avatar/", PublicAvatarHandler)
+	mux.HandleFunc("/api/user", UserCardHandler)
+	mux.HandleFunc("/api/follow", FollowHandler)
+	mux.HandleFunc("/api/unfollow", UnfollowHandler)
+	mux.HandleFunc("/api/me/friends", FriendsHandler)
+	mux.HandleFunc("/api/me/privacy", PrivacyHandler)
+	mux.HandleFunc("/api/users/search", UserSearchHandler)
+	mux.HandleFunc("/api/dm/open", DMOpenHandler)
+	mux.HandleFunc("/ws/lobby", LobbyHandler)
 	mux.HandleFunc("/ws", manager.HandleWS)
 	hub.Register(mux)
 	addr := os.Getenv("ADDR")
@@ -86,6 +94,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	go sessionJanitor(ctx)
+	go presenceHub.runCounts(ctx, hub)
 
 	go func() {
 		certFile, keyFile := os.Getenv("TLS_CERT_FILE"), os.Getenv("TLS_KEY_FILE")

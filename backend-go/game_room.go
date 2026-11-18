@@ -26,7 +26,12 @@ const (
 	maxChatKeep    = 30
 	maxChatRunes   = 200
 	chatCooldown   = 700 * time.Millisecond
+	reactCooldown  = 250 * time.Millisecond
+	typingCooldown = 1500 * time.Millisecond
 )
+
+// The reactions a player can tap on a chat message. Anything else is ignored.
+var allowedReactions = map[string]bool{"👍": true, "😂": true, "😮": true, "🔥": true, "🎉": true, "👏": true}
 
 var errRoomClosed = errors.New("room is closed")
 
@@ -51,6 +56,8 @@ type gamePlayer struct {
 	score     int
 	gain      int
 	lastChat  time.Time
+	lastReact time.Time
+	lastType  time.Time
 }
 
 type GameRoom struct {
@@ -64,6 +71,8 @@ type GameRoom struct {
 
 	// Readable from other goroutines (hub quick-match).
 	joinable atomic.Bool
+	// Connected players, for the live "N playing" counts on the portals.
+	live atomic.Int32
 
 	// Everything below is owned by run() and never touched elsewhere.
 	rng      *rand.Rand
@@ -78,6 +87,7 @@ type GameRoom struct {
 	final    *FinalView
 	done     []bool // per finished mission: did anyone score?
 	chat     []ChatMsg
+	chatSeq  int
 	dirty    bool
 	urgent   bool
 	lastSend time.Time
@@ -132,9 +142,11 @@ func (r *GameRoom) run() {
 	defer func() {
 		for _, p := range r.players {
 			if p.client != nil {
+				presenceHub.ClearRoom(p.name, r.code)
 				p.client.close()
 			}
 		}
+		r.live.Store(0)
 		close(r.closed)
 		if r.onClose != nil {
 			r.onClose()
@@ -225,6 +237,7 @@ func (r *GameRoom) onJoin(ev roomEvent) {
 
 	hello := HelloView{Protocol: protocolVersion, You: c.name, Chat: append([]ChatMsg(nil), r.chat...)}
 	r.sendTo(p, Envelope{V: protocolVersion, Type: "hello", Payload: hello})
+	presenceHub.SetRoom(p.name, RoomRef{Code: r.code, Map: r.def.ID, Name: r.def.Name, Public: r.public})
 	r.syncCounters()
 	r.urgent = true
 }
@@ -235,6 +248,7 @@ func (r *GameRoom) onLeave(c *gameClient) {
 		return // a stale connection (replaced by a newer one)
 	}
 	p.client = nil
+	presenceHub.ClearRoom(p.name, r.code)
 	if r.phase == phaseLobby || r.phase == phaseFinished || p.spectator || r.phase == phaseCountdown {
 		delete(r.players, p.name)
 		r.removeFromOrder(p.name)
@@ -246,6 +260,7 @@ func (r *GameRoom) onLeave(c *gameClient) {
 		r.phase = phaseLobby // not enough players any more: back to the lobby
 	}
 	if r.connectedCount() == 0 {
+		r.live.Store(0)
 		r.stop = true
 		return
 	}
@@ -320,12 +335,45 @@ func (r *GameRoom) onMsg(ev roomEvent) {
 			return
 		}
 		p.lastChat = now
-		msg := ChatMsg{From: p.name, Text: text, At: now.UnixMilli()}
+		r.chatSeq++
+		msg := ChatMsg{ID: r.chatSeq, From: p.name, Text: text, At: now.UnixMilli()}
 		r.chat = append(r.chat, msg)
 		if len(r.chat) > maxChatKeep {
 			r.chat = r.chat[len(r.chat)-maxChatKeep:]
 		}
 		r.broadcast(Envelope{V: protocolVersion, Type: "chat", Payload: msg})
+	case "react":
+		var v struct {
+			ID    int    `json:"id"`
+			Emoji string `json:"emoji"`
+		}
+		if json.Unmarshal(ev.msg.Payload, &v) != nil || !allowedReactions[v.Emoji] || now.Sub(p.lastReact) < reactCooldown {
+			return
+		}
+		p.lastReact = now
+		for i := range r.chat {
+			if r.chat[i].ID != v.ID {
+				continue
+			}
+			m := &r.chat[i]
+			if m.Reacts == nil {
+				m.Reacts = map[string][]string{}
+			}
+			names, _ := toggleName(m.Reacts[v.Emoji], p.name)
+			if len(names) == 0 {
+				delete(m.Reacts, v.Emoji)
+			} else {
+				m.Reacts[v.Emoji] = names
+			}
+			r.broadcast(Envelope{V: protocolVersion, Type: "react", Payload: ReactView{ID: m.ID, Emoji: v.Emoji, Names: names}})
+			return
+		}
+	case "typing":
+		if now.Sub(p.lastType) < typingCooldown {
+			return
+		}
+		p.lastType = now
+		r.broadcastExcept(p.name, Envelope{V: protocolVersion, Type: "typing", Payload: TypingView{Name: p.name}})
 	case "act":
 		if r.phase == phasePlaying && !p.spectator && r.mission != nil {
 			if r.mission.Handle(p.name, ev.msg.Payload, now) {
@@ -337,6 +385,16 @@ func (r *GameRoom) onMsg(ev roomEvent) {
 			r.rematch()
 		}
 	}
+}
+
+// toggleName adds name to the list, or removes it when already there.
+func toggleName(list []string, name string) (out []string, removed bool) {
+	for i, n := range list {
+		if n == name {
+			return append(append([]string(nil), list[:i]...), list[i+1:]...), true
+		}
+	}
+	return append(append([]string(nil), list...), name), false
 }
 
 func cleanChat(s string) string {
@@ -524,6 +582,7 @@ func (r *GameRoom) scoredNames() []string {
 }
 
 func (r *GameRoom) syncCounters() {
+	r.live.Store(int32(r.connectedCount()))
 	r.joinable.Store(r.public && r.phase == phaseLobby && r.scoredCount() < r.def.MaxPlayers)
 }
 
@@ -545,6 +604,18 @@ func (r *GameRoom) broadcast(env Envelope) {
 	}
 	for _, p := range r.players {
 		if p.client != nil {
+			p.client.push(data)
+		}
+	}
+}
+
+func (r *GameRoom) broadcastExcept(skip string, env Envelope) {
+	data, err := json.Marshal(env)
+	if err != nil {
+		return
+	}
+	for _, p := range r.players {
+		if p.client != nil && p.name != skip {
 			p.client.push(data)
 		}
 	}
