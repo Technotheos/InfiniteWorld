@@ -36,91 +36,88 @@ export function FriendsPanel() {
   const online = social.friends.filter((f) => f.online).length;
 
   return (
-    <section aria-label="Friends" className="space-y-4">
-      <div>
-        <div className="font-mono text-[11px] tracking-[0.25em] text-[#5eead4]">// CREW</div>
-        <h3 className="iw-display mt-1 text-3xl font-light">Friends</h3>
-        <p className="mt-1 text-sm text-[#a49fb0]">
-          Follow someone and, when they follow you back, you become friends. Only friends can see when you are online.
-        </p>
-      </div>
-
-      <div className="rounded-3xl border border-white/10 bg-[#0d0b16]/75 p-4 backdrop-blur-md">
-        <label className="relative block">
-          <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#a49fb0]" />
+    <section aria-label="Friends" className="rounded-3xl border border-white/10 bg-[#0d0b16]/75 p-4 backdrop-blur-md sm:p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-baseline gap-3">
+          <h3 className="iw-display text-2xl font-light">Friends</h3>
+          <span className="flex items-center gap-1.5 text-xs text-[#a49fb0]">
+            <span className={`h-2 w-2 rounded-full ${online > 0 ? 'bg-[#5eead4] shadow-[0_0_8px_#5eead4]' : 'bg-white/25'}`} />
+            {online} online
+          </span>
+        </div>
+        <label className="relative block w-full sm:w-60">
+          <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#a49fb0]" />
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Find a player by name"
+            placeholder="Find a player"
             aria-label="Find a player by name"
             autoComplete="off"
             maxLength={32}
             style={{ colorScheme: 'dark', color: '#f1f5f9', backgroundColor: '#06050b' }}
-            className="w-full rounded-xl border border-white/10 py-2 pl-9 pr-3 text-sm placeholder:text-slate-500 focus:border-[#e9b872]/60 focus:outline-none"
+            className="w-full rounded-xl border border-white/10 py-1.5 pl-8 pr-3 text-sm placeholder:text-slate-500 focus:border-[#e9b872]/60 focus:outline-none"
           />
         </label>
-        {found.length > 0 && (
-          <ul className="mt-2 divide-y divide-white/5 rounded-xl border border-white/10">
-            {found.map((n) => (
-              <li key={n} className="flex items-center gap-3 px-3 py-2">
-                <UserAvatar name={n} size={28} />
-                <UserName name={n} className="text-sm capitalize" />
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {chatError && <p role="alert" className="mt-3 text-xs text-[#ffc9c2]">{chatError}</p>}
-
-        {social.friends.length === 0 ? (
-          <p className="mt-4 text-sm text-[#a49fb0]">
-            No friends yet. Tap any avatar or name in a room to see a profile and follow them.
-          </p>
-        ) : (
-          <>
-            <p className="mt-4 text-xs text-[#a49fb0]">{online} online</p>
-            <ul className="mt-2 space-y-1">
-              {social.friends.map((f) => (
-                <li key={f.name} className="flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-white/5">
-                  <span className="relative">
-                    <UserAvatar name={f.name} size={36} />
-                    <span
-                      aria-label={f.online ? 'Online' : 'Offline'}
-                      className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#0d0b16] ${f.online ? 'bg-[#5eead4]' : 'bg-white/25'}`}
-                    />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <UserName name={f.name} className="block truncate text-sm font-semibold capitalize" />
-                    <div className="truncate text-xs text-[#a49fb0]">
-                      {!f.online ? 'Offline' : f.room ? `In ${f.room.name}${f.room.joinable ? '' : ' (private)'}` : 'Online'}
-                    </div>
-                  </div>
-                  {f.room?.joinable && f.room.code && (
-                    <button
-                      type="button"
-                      onClick={() => social.joinRoom(f.room!.code!)}
-                      className="rounded-lg bg-[#5eead4]/15 px-3 py-1 text-xs font-semibold text-[#5eead4] hover:bg-[#5eead4]/25"
-                    >
-                      Join
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    aria-label={`Chat with ${f.name}`}
-                    onClick={() => {
-                      setChatError('');
-                      social.openDM(f.name).catch((e: Error) => setChatError(e.message));
-                    }}
-                    className="rounded-lg p-2 text-[#a49fb0] hover:bg-white/10 hover:text-[#e9b872]"
-                  >
-                    <MessageCircle size={16} />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
       </div>
+
+      {found.length > 0 && (
+        <ul className="mt-3 divide-y divide-white/5 rounded-xl border border-white/10">
+          {found.map((n) => (
+            <li key={n} className="flex items-center gap-3 px-3 py-2">
+              <UserAvatar name={n} size={26} />
+              <UserName name={n} className="text-sm capitalize" />
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {chatError && <p role="alert" className="mt-3 text-xs text-[#ffc9c2]">{chatError}</p>}
+
+      {social.friends.length === 0 ? (
+        <p className="mt-3 text-sm text-[#a49fb0]">
+          No friends yet. Tap any avatar or name to see a profile and follow them. When they follow you back, you are friends and can see each other online.
+        </p>
+      ) : (
+        <ul className="-mx-1 mt-3 flex gap-2 overflow-x-auto px-1 pb-1" aria-label="Your friends">
+          {social.friends.map((f) => (
+            <li key={f.name} className={`flex w-56 shrink-0 items-center gap-2.5 rounded-2xl border border-white/10 bg-black/25 px-3 py-2 ${f.online ? '' : 'opacity-60'}`}>
+              <span className="relative">
+                <UserAvatar name={f.name} size={34} />
+                <span
+                  aria-label={f.online ? 'Online' : 'Offline'}
+                  className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#0d0b16] ${f.online ? 'bg-[#5eead4]' : 'bg-white/25'}`}
+                />
+              </span>
+              <div className="min-w-0 flex-1">
+                <UserName name={f.name} className="block truncate text-sm font-semibold capitalize" />
+                <div className="truncate text-[11px] text-[#a49fb0]">
+                  {!f.online ? 'Offline' : f.room ? `In ${f.room.name}${f.room.joinable ? '' : ' (private)'}` : 'Online'}
+                </div>
+              </div>
+              {f.room?.joinable && f.room.code && (
+                <button
+                  type="button"
+                  onClick={() => social.joinRoom(f.room!.code!)}
+                  className="rounded-lg bg-[#5eead4]/15 px-2.5 py-1 text-xs font-semibold text-[#5eead4] hover:bg-[#5eead4]/25"
+                >
+                  Join
+                </button>
+              )}
+              <button
+                type="button"
+                aria-label={`Chat with ${f.name}`}
+                onClick={() => {
+                  setChatError('');
+                  social.openDM(f.name).catch((e: Error) => setChatError(e.message));
+                }}
+                className="rounded-lg p-1.5 text-[#a49fb0] hover:bg-white/10 hover:text-[#e9b872]"
+              >
+                <MessageCircle size={15} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
