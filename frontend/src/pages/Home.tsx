@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Logo } from '../components/Logo';
 import { motion, useReducedMotion, type MotionProps } from 'framer-motion';
 import {
@@ -12,7 +12,7 @@ import { Avatar } from '../components/Avatar';
 import { usePrefs } from '../hooks/usePrefs';
 import type { EngineStatus } from '../hooks/useEngineStatus';
 import { MAP_ORDER, MISSIONS, NODE_POS, loadProgress, rankFor, totalXp } from '../game/chain-lab';
-import { SlugBasket } from '../mascot';
+import { SlugDock } from '../mascot';
 import { RoomPortals } from '../components/RoomPortals';
 import { FriendsPanel } from '../social/FriendsPanel';
 
@@ -205,6 +205,15 @@ export default function Home({
   const [prefs] = usePrefs();
   const status = STATUS_STYLES[engineStatus];
 
+  // Laptops get the slug basket as a floating glass dock; phones get a strip at the top.
+  const [isDesktop, setIsDesktop] = useState(() => window.matchMedia('(min-width: 768px)').matches);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const on = () => setIsDesktop(mq.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+
   const xp = totalXp(done);
   const rank = rankFor(xp);
   const charted = MISSIONS.filter((m) => m.id in done).length;
@@ -395,14 +404,21 @@ export default function Home({
             </div>
           </motion.header>
 
+          {/* Friends and online status, right at the top */}
+          <motion.div {...rise(0.5)}>
+            <FriendsPanel />
+          </motion.div>
+
+          {/* Phones: the slug basket is a slim glass strip near the top */}
+          {!isDesktop && (
+            <motion.section {...rise(0.8)} aria-label="Slug Squad">
+              <SlugDock layout="inline" />
+            </motion.section>
+          )}
+
           <motion.p {...rise(1)} className="iw-display italic font-light text-xl leading-relaxed text-[#b9b3c4] max-w-4xl">
             “Time is not a currency to be spent, but an orbit—choose to revolve around what anchors your spirit, deepens your bonds, and expands your universe.”
           </motion.p>
-
-          {/* Slug Squad: the glass basket where Embo and friends live */}
-          <motion.section {...rise(1.5)} aria-label="Slug Squad">
-            <SlugBasket />
-          </motion.section>
 
           {/* Featured room: Chain Security Lab */}
           <motion.section {...rise(2)} aria-label="Chain Security Lab">
@@ -496,11 +512,6 @@ export default function Home({
             <RoomPortals onPlayMap={onPlayMap} onJoinCode={onJoinCode} disabled={warping} warp={enter} />
           </motion.section>
 
-          {/* Friends and presence */}
-          <motion.div {...rise(5)}>
-            <FriendsPanel />
-          </motion.div>
-
           {/* Chat rooms */}
           <motion.section {...rise(5)} aria-label="Chat rooms" ref={chatRef} className="space-y-4 scroll-mt-8">
             <div className="flex flex-wrap items-end justify-between gap-3">
@@ -562,6 +573,13 @@ export default function Home({
           </motion.section>
         </div>
       </main>
+
+      {/* Laptop: slug basket, small frosted glass at the bottom-left (just right of the sidebar) */}
+      {isDesktop && (
+        <div className="fixed bottom-4 left-[17rem] z-30">
+          <SlugDock layout="dock" />
+        </div>
+      )}
     </div>
   );
 }
