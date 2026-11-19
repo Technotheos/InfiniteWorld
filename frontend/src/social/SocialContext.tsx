@@ -3,6 +3,7 @@ import { WS_URL } from '../components/authApi';
 import { getToken, getSession, refreshSession, subscribe } from '../session';
 import { getFriends, openDM as openDMApi, type Friend } from './socialApi';
 import { ProfileCard } from './ProfileCard';
+import { sfx } from '../sound';
 import { DMDrawer } from './DMDrawer';
 import { Ctx, type DMInvite, type SocialApi } from './socialCore';
 
@@ -86,6 +87,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
           refreshFriends();
         } else if (msg.type === 'dm') {
           setInvite(msg.payload as DMInvite);
+          sfx('ping');
         }
       };
       mine.onclose = (ev: CloseEvent) => {

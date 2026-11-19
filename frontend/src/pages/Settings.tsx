@@ -15,6 +15,7 @@ import {
 } from '../components/profileApi';
 import { usePrefs, type Prefs } from '../hooks/usePrefs';
 import { loadProgress, rankFor, totalXp } from '../game/chain-lab';
+import { Ambient, sfx, useSoundPrefs } from '../sound';
 import { getPrivacy, savePrivacy, type Policy, type Privacy } from '../social/socialApi';
 
 /* -------------------------------------------------------------------------- */
@@ -69,6 +70,26 @@ function Row({ label, hint, children, stack = false }: { label: string; hint?: s
         {hint && <div className="mt-0.5 text-xs text-[#a49fb0]">{hint}</div>}
       </div>
       {children && <div className={stack ? '' : 'shrink-0'}>{children}</div>}
+    </div>
+  );
+}
+
+function VolumeSlider({ value, label, onChange, onCommit }: { value: number; label: string; onChange: (v: number) => void; onCommit?: () => void }) {
+  return (
+    <div className="flex items-center gap-3">
+      <input
+        type="range"
+        min={0}
+        max={100}
+        step={5}
+        value={Math.round(value * 100)}
+        aria-label={label}
+        onChange={(e) => onChange(Number(e.target.value) / 100)}
+        onPointerUp={onCommit}
+        onKeyUp={onCommit}
+        className={`w-36 accent-[#e9b872] sm:w-48 ${FOCUS}`}
+      />
+      <span className="w-9 text-right text-xs tabular-nums text-[#a49fb0]">{Math.round(value * 100)}%</span>
     </div>
   );
 }
@@ -174,6 +195,7 @@ const PREF_ROWS: { key: keyof Prefs; label: string; hint: string }[] = [
 export default function Settings({ token, username, onBack, onLogout, onSessionChange, onOpenAdmin, onProfileChange }: SettingsProps) {
   const reduce = useReducedMotion();
   const [prefs, setPref] = usePrefs();
+  const [sound, setSound] = useSoundPrefs();
   const [me, setMe] = useState<Profile | null>(null);
   const [loadError, setLoadError] = useState('');
 
@@ -644,6 +666,22 @@ export default function Settings({ token, username, onBack, onLogout, onSessionC
                 <Switch on={prefs[r.key]} onChange={(v) => setPref(r.key, v)} label={r.label} />
               </Row>
             ))}
+          </Section>
+        </motion.div>
+
+        {/* Sound */}
+        <motion.div {...rise(2)}>
+          <Section title="Sound" hint="Made right in your browser, so nothing to download. Sound starts after your first tap.">
+            <Ambient scene="home" />
+            <Row label="Mute everything" hint="Silences ambience, effects and the slugs.">
+              <Switch on={sound.muted} onChange={(v) => setSound('muted', v)} label="Mute everything" />
+            </Row>
+            <Row label="Ambience" hint="The quiet loop that plays in each room.">
+              <VolumeSlider value={sound.ambience} label="Ambience volume" onChange={(v) => setSound('ambience', v)} />
+            </Row>
+            <Row label="Effects" hint="Clicks, success and fail tones, the warp whoosh and slug voices.">
+              <VolumeSlider value={sound.effects} label="Effects volume" onChange={(v) => setSound('effects', v)} onCommit={() => sfx('success')} />
+            </Row>
           </Section>
         </motion.div>
 
