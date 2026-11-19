@@ -15,6 +15,7 @@ import { UserAvatar } from './components/Avatar';
 import { AuthExpiredError, avatarUrl, getMe } from './components/profileApi';
 import { SocialProvider, useSocial } from './social/SocialContext';
 import { UserName } from './social/UserName';
+import { Ambient } from './sound';
 import { clearSession, getSession, logoutRemote, refreshSession, setSession, subscribe, type Session } from './session';
 
 const AI_CHAT_ROOM = 'ai-deep-dive';
@@ -171,21 +172,27 @@ function AppInner() {
 
     if (aiOpen) {
       return (
-        <AILab
-          username={username}
-          onLeave={() => setAiOpen(false)}
-          onDiscuss={() => setSelectedRoom(AI_CHAT_ROOM)}
-        />
+        <>
+          <Ambient scene="ai-lab" />
+          <AILab
+            username={username}
+            onLeave={() => setAiOpen(false)}
+            onDiscuss={() => setSelectedRoom(AI_CHAT_ROOM)}
+          />
+        </>
       );
     }
 
     if (labOpen) {
       return (
-        <ChainSecurityLab
-          username={username}
-          onLeave={() => setLabOpen(false)}
-          onDiscuss={() => setSelectedRoom(LAB_CHAT_ROOM)}
-        />
+        <>
+          <Ambient scene="chain-lab" />
+          <ChainSecurityLab
+            username={username}
+            onLeave={() => setLabOpen(false)}
+            onDiscuss={() => setSelectedRoom(LAB_CHAT_ROOM)}
+          />
+        </>
       );
     }
 
@@ -214,6 +221,7 @@ function AppInner() {
   const roomTitle = selectedRoom.replace(/[-_]+/g, ' ');
   return (
     <div className="h-[100dvh] bg-[#06050b] text-slate-100 flex flex-col items-center justify-center sm:p-4">
+      <Ambient scene="home" />
       <div className="w-full sm:max-w-2xl h-full sm:h-[88vh] bg-[#0d0b16] sm:border border-white/10 sm:rounded-3xl p-3 sm:p-6 shadow-2xl flex flex-col min-h-0">
         <div className="flex items-center justify-between gap-3 pb-3 sm:pb-4 border-b border-white/10">
           <button
