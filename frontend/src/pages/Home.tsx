@@ -15,6 +15,7 @@ import { MAP_ORDER, MISSIONS, NODE_POS, loadProgress, rankFor, totalXp } from '.
 import { SlugDock } from '../mascot';
 import { RoomPortals } from '../components/RoomPortals';
 import { FriendsPanel } from '../social/FriendsPanel';
+import { Ambient, sfx } from '../sound';
 
 /* -------------------------------------------------------------------------- */
 /*  Props                                                                     */
@@ -228,6 +229,7 @@ export default function Home({
         return;
       }
       setWarping(true);
+      sfx('whoosh');
       try {
         await starfield.current?.warp();
         await go();
@@ -251,6 +253,7 @@ export default function Home({
 
   return (
     <div className={`iw-root relative min-h-screen flex overflow-hidden ${prefs.ambient ? '' : 'iw-calm'}`}>
+      <Ambient scene="home" />
       {prefs.starfield && <Starfield ref={starfield} />}
 
       {/* Ambient nebula */}

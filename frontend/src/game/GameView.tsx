@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Ambient, sfx } from "../sound";
+import { useMascot } from "../mascot";
 import { Chat } from "./Chat";
 import { MapTrail } from "./MapTrail";
 import { Scoreboard } from "./Scoreboard";
@@ -26,8 +28,28 @@ export interface GameViewProps {
   onLeave: () => void;
 }
 
+/** Success and fail tones, and the "go!" at the start of each mission. */
+function useGameSounds(state: StateView) {
+  const prev = useRef<{ phase: string; score: number; bad: number } | null>(null);
+  const me = state.players.find((p) => p.name === state.you);
+  const score = me?.score ?? 0;
+  // Wrong answers show up in the private state: math counts them, cipher counts attempts.
+  const pv = state.private as { wrong?: number; attempts?: number; solved?: boolean } | undefined;
+  const bad = pv ? (pv.wrong ?? Math.max(0, (pv.attempts ?? 0) - (pv.solved ? 1 : 0))) : 0;
+  useEffect(() => {
+    const p = prev.current;
+    if (p) {
+      if (state.phase !== p.phase && state.phase === "playing") sfx("go");
+      if (score > p.score) sfx("success");
+      else if (bad > p.bad) sfx("fail");
+    }
+    prev.current = { phase: state.phase, score, bad };
+  }, [state.phase, score, bad]);
+}
+
 /** Pure view of one room state. No sockets in here, so it is easy to preview and test. */
 export function GameView({ state, chat, typing = [], status, skew, send, onLeave }: GameViewProps) {
+  useGameSounds(state);
   const [copied, setCopied] = useState(false);
   const copy = () => {
     void navigator.clipboard?.writeText(state.code).then(() => {
@@ -38,6 +60,7 @@ export function GameView({ state, chat, typing = [], status, skew, send, onLeave
 
   return (
     <div className="rg-root" data-theme={state.map.theme}>
+      <Ambient scene={state.map.id} />
       <header className="rg-top">
         <div>
           <div className="rg-eyebrow">{state.map.mode === "coop" ? "Co-op room" : "Versus room"}</div>
@@ -127,6 +150,7 @@ function Lobby({ state, send }: { state: StateView; send: SendFn }) {
 
 function Countdown({ state, skew }: { state: StateView; skew: number }) {
   const { seconds } = useCountdown(state.deadline, skew);
+  useEffect(() => { sfx("tick"); }, [seconds]);
   return (
     <div className="rg-card rg-center">
       <p className="rg-eyebrow">Get ready</p>
@@ -212,6 +236,14 @@ function Reveal({ state, skew }: { state: StateView; skew: number }) {
 
 function Finished({ state, send }: { state: StateView; send: SendFn }) {
   const res = state.result;
+  const mascot = useMascot();
+  const won = res ? (res.mode === "coop" ? res.won : res.ranking[0]?.name === state.you) : false;
+  const lost = res ? res.mode === "coop" && !res.won : false;
+  useEffect(() => {
+    if (won) { sfx("win"); mascot.react("cheer"); } // the slugs that are out cheer along
+    else if (lost) sfx("fail");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [won, lost]);
   if (!res) return null;
   const podium = res.ranking.filter((r) => r.place <= 3).slice(0, 3);
   const order = podium.length === 3 ? [podium[1]!, podium[0]!, podium[2]!] : podium;

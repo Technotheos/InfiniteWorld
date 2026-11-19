@@ -4,6 +4,12 @@ import {
 } from "react";
 import "./mascot.css";
 import type { Pose } from "./pose";
+import { slugSound, type SlugSound } from "../sound";
+
+// Which noise goes with which pose. Poses not listed here stay quiet (walking, idling...).
+const POSE_SOUND: Partial<Record<Pose, SlugSound>> = {
+  wave: "chirp", cheer: "cheer", surprised: "squelch", dizzy: "dizzy", trip: "squelch",
+};
 import { CHARS, ORDER, isCharId, type Char, type CharId, type Lines } from "./characters";
 
 export type { Pose } from "./pose";
@@ -63,10 +69,11 @@ export function MascotProvider({ children, avoidRight = 170 }: { children: React
   }, [out]);
 
   const release = useCallback((id: CharId, fromX?: number) => {
+    slugSound(id, "chirp"); // popping out of the basket
     if (fromX !== undefined) spawn.current[id] = fromX;
     setOut((o) => (o.includes(id) ? o : [...o, id]));
   }, []);
-  const collect = useCallback((id: CharId) => setOut((o) => o.filter((x) => x !== id)), []);
+  const collect = useCallback((id: CharId) => { slugSound(id, "squelch"); setOut((o) => o.filter((x) => x !== id)); }, []);
   const releaseAll = useCallback(() => setOut(ORDER.slice()), []);
   const collectAll = useCallback(() => setOut([]), []);
   const register = useCallback((id: CharId, b: Brain | null) => {
@@ -120,6 +127,8 @@ function Wanderer({ char, avoidRight, startX, onCollect, register }: {
   const timers = useRef<number[]>([]);
   const bubbleT = useRef(0);
   const poseRef = useRef<Pose>("idle");
+  const snoreT = useRef(0);
+  useEffect(() => () => window.clearInterval(snoreT.current), []);
   const xRef = useRef(x);
   const lastAct = useRef(Date.now());
   const pokes = useRef({ n: 0, t: 0 });
@@ -150,7 +159,18 @@ function Wanderer({ char, avoidRight, startX, onCollect, register }: {
   useEffect(() => {
     const later = (fn: () => void, ms: number) => { timers.current.push(window.setTimeout(fn, ms)); };
     const clear = () => { timers.current.forEach(clearTimeout); timers.current = []; };
-    const to = (p: Pose) => { poseRef.current = p; setPose(p); };
+    const to = (p: Pose) => {
+      const changed = poseRef.current !== p;
+      poseRef.current = p; setPose(p);
+      window.clearInterval(snoreT.current);
+      if (p === "sleep") { // sleepy breathing for as long as it naps
+        slugSound(char.id, "snore");
+        snoreT.current = window.setInterval(() => slugSound(char.id, "snore"), 3600);
+      } else if (changed) {
+        const s = POSE_SOUND[p];
+        if (s) slugSound(char.id, s);
+      }
+    };
 
     const freeze = () => { // stop mid-walk exactly where we are
       const r = el.current?.getBoundingClientRect();
