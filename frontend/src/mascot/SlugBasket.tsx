@@ -8,11 +8,11 @@ const FOCUS =
   "outline-none focus-visible:ring-2 focus-visible:ring-[#e9b872] focus-visible:ring-offset-2 focus-visible:ring-offset-[#06050b]";
 
 // Where each slug stands inside the glass (centre x as % of the basket's width).
-const SPOT: Record<CharId, number> = { embo: 28, jolt: 50, sprig: 72 };
+export const SPOT: Record<CharId, number> = { embo: 28, jolt: 50, sprig: 72 };
 const GLASS = "M56 64C50 170 70 250 120 272L360 272C410 250 430 170 424 64Z";
 
 /** Back half of the glass: handle, tinted inside, glowing gems, far rim. */
-function GlassBack() {
+export function GlassBack() {
   return (
     <svg className="sb-layer sb-back" viewBox="0 0 480 300" aria-hidden="true">
       <defs>
@@ -43,7 +43,7 @@ function GlassBack() {
 }
 
 /** Front half of the glass: sheen, near rim, metal base, reflections. */
-function GlassFront() {
+export function GlassFront() {
   return (
     <svg className="sb-layer sb-front" viewBox="0 0 480 300" aria-hidden="true">
       <defs>
