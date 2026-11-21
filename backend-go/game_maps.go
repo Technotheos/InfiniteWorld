@@ -17,12 +17,12 @@ import (
 var mapFiles embed.FS
 
 type MissionDef struct {
-	Kind       string   `json:"kind"` // reaction | math | typing | cipher | talk | bazaar | mystery
+	Kind       string   `json:"kind"` // reaction | math | typing | cipher | talk | bazaar | mystery | relic
 	Title      string   `json:"title"`
 	Brief      string   `json:"brief"`
 	DurationMS int      `json:"duration_ms,omitempty"` // time limit (per puzzle for cipher)
 	Rounds     int      `json:"rounds,omitempty"`      // reaction rounds / cipher puzzles / bazaar questions
-	Variant    string   `json:"variant,omitempty"`     // cipher: caesar | base64 | hex | binary; bazaar: estimate | fib | chain; mystery: museum | lab | liner
+	Variant    string   `json:"variant,omitempty"`     // cipher: caesar | base64 | hex | binary; bazaar: estimate | fib | chain; mystery: museum | lab | liner; relic: idol | lantern | mask
 	MinDelayMS int      `json:"min_delay_ms,omitempty"`
 	MaxDelayMS int      `json:"max_delay_ms,omitempty"`
 	Prompts    []string `json:"prompts,omitempty"` // talk: conversation starters
@@ -39,15 +39,17 @@ type MapDef struct {
 	CountdownMS int          `json:"countdown_ms,omitempty"`
 	BriefingMS  int          `json:"briefing_ms,omitempty"`
 	RevealMS    int          `json:"reveal_ms,omitempty"`
+	Voice       bool         `json:"voice,omitempty"` // mic and camera (WebRTC) available in this room
 	Missions    []MissionDef `json:"missions"`
 }
 
 var (
 	mapIDRe    = regexp.MustCompile(`^[a-z0-9-]{2,24}$`)
 	knownKinds = map[string]bool{"reaction": true, "math": true, "typing": true, "cipher": true, "talk": true,
-		"bazaar": true, "mystery": true}
+		"bazaar": true, "mystery": true, "relic": true}
 	cipherVars  = map[string]bool{"caesar": true, "base64": true, "hex": true, "binary": true}
 	bazaarVars  = map[string]bool{"estimate": true, "fib": true, "chain": true}
+	relicVars   = map[string]bool{"": true, "idol": true, "lantern": true, "mask": true} // "" = random relic
 	mysteryVars = map[string]bool{"": true, "museum": true, "lab": true, "liner": true} // "" = random case
 )
 
@@ -158,6 +160,17 @@ func (m *MissionDef) normalize() error {
 		if m.DurationMS < 100 || m.DurationMS > 120000 {
 			return fmt.Errorf("duration_ms must be 100-120000")
 		}
+	case "relic":
+		// DurationMS is the length of the hunt itself; the reveal and the burial are fixed cinematics.
+		if !relicVars[m.Variant] {
+			return fmt.Errorf("relic variant must be idol, lantern or mask (or empty for a random relic)")
+		}
+		if m.DurationMS == 0 {
+			m.DurationMS = 150000
+		}
+		if m.DurationMS < 100 || m.DurationMS > 600000 {
+			return fmt.Errorf("duration_ms must be 100-600000")
+		}
 	case "mystery":
 		// DurationMS is the length of the interrogation phase; the other phases scale from it.
 		if !mysteryVars[m.Variant] {
@@ -176,7 +189,7 @@ func (m *MissionDef) normalize() error {
 // Info is the public description of a map (what the lobby and the trail show).
 func (d *MapDef) Info() MapInfo {
 	info := MapInfo{ID: d.ID, Name: d.Name, Tagline: d.Tagline, Theme: d.Theme, Mode: d.Mode,
-		MinPlayers: d.MinPlayers, MaxPlayers: d.MaxPlayers}
+		MinPlayers: d.MinPlayers, MaxPlayers: d.MaxPlayers, Voice: d.Voice}
 	for _, m := range d.Missions {
 		info.Missions = append(info.Missions, MissionInfo{Kind: m.Kind, Title: m.Title, Brief: m.Brief})
 	}
