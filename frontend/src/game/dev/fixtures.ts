@@ -221,7 +221,7 @@ function mysteryScenarios(): Record<string, () => StateView> {
 function relicScenarios(): Record<string, () => StateView> {
   const ZONES = [{ name: "Weeping Grove", x: -17, z: -15 }, { name: "Drowned Chapel", x: 17, z: -14 }, { name: "Bone Orchard", x: -16, z: 17 }, { name: "Old Well", x: 17, z: 17 }];
   const RELIC = { key: "idol" as const, name: "The Weeping Idol", lore: "A jade idol that cries black water. Every village that kept it lost its wells within a year.", curse: "Whoever holds it hears their own name whispered from the ground." };
-  const ps = () => crew().map((p, i) => ({ ...p, voice: i < 2 ? { on: true, mic: i === 0, cam: false } : undefined }));
+  const ps = () => crew().map((p, i) => ({ ...p, voice: i < 2 ? { on: true, mic: i === 0, cam: i === 0 } : undefined }));
   const ring = (r: number): Record<string, [number, number, number]> => ({ neo: [r, 0, 0], trinity: [-r * 0.5, r * 0.86, 0], morpheus: [-r * 0.5, -r * 0.86, 0] });
   const play = (phase: "show" | "bury" | "hunt" | "found", ageMs: number, extra: Record<string, unknown> = {}) => ({
     kind: "relic", phase, relic: RELIC, zones: ZONES, bound: 28, reach: 2.3, phase_at: Date.now() - ageMs,
