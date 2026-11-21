@@ -1,35 +1,17 @@
-import { useEffect, useRef } from "react";
-import { Avatar } from "../ui";
+import { useEffect } from "react";
+import { Mic, MicOff, Video, VideoOff, PhoneOff, SwitchCamera } from "lucide-react";
 import type { PlayerView } from "../types";
-import type { VoiceApi } from "./useVoice";
+import type { VoiceApi, CamQuality } from "./useVoice";
+import type { VoiceUi, TileSize } from "./voiceUi";
+import { VoiceTile } from "./VoiceTile";
 import "./voice.css";
 
-function Feed({ stream, mirror }: { stream: MediaStream; mirror?: boolean }) {
-  const ref = useRef<HTMLVideoElement>(null);
-  useEffect(() => {
-    const v = ref.current;
-    if (!v) return;
-    v.srcObject = stream;
-    void v.play().catch(() => undefined);
-    return () => { v.srcObject = null; };
-  }, [stream]);
-  // Muted on purpose: the sound comes from the Web Audio graph (so it can fade with distance), never from here.
-  return <video ref={ref} muted playsInline autoPlay className={mirror ? "mirror" : undefined} />;
-}
-
-const MicIcon = ({ off }: { off?: boolean }) => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" />{off && <path d="M4 4l16 16" />}
-  </svg>
-);
-const CamIcon = ({ off }: { off?: boolean }) => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <rect x="3" y="6" width="12" height="12" rx="2.5" /><path d="m15 10 6-3v10l-6-3" />{off && <path d="M3 3l18 18" />}
-  </svg>
-);
+const SIZES: { id: TileSize; label: string }[] = [{ id: "s", label: "S" }, { id: "m", label: "M" }, { id: "l", label: "L" }];
+const QUALITIES: { id: CamQuality; label: string }[] = [{ id: "low", label: "Low" }, { id: "med", label: "Medium" }, { id: "high", label: "High" }];
+const isTouch = () => typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches;
 
 /** Join, mute and camera controls plus a tile for everyone in the room's voice chat. */
-export function VoicePanel({ voice, players, you }: { voice: VoiceApi; players: PlayerView[]; you: string }) {
+export function VoicePanel({ voice, ui, players, you }: { voice: VoiceApi; ui: VoiceUi; players: PlayerView[]; you: string }) {
   const inVoice = players.filter((p) => p.voice?.on && p.connected);
   const mine = players.find((p) => p.name === you);
 
@@ -46,16 +28,40 @@ export function VoicePanel({ voice, players, you }: { voice: VoiceApi; players: 
     return () => window.removeEventListener("keydown", kd);
   }, [voice]);
 
+  const pinned = ui.pinned && inVoice.some((p) => p.name === ui.pinned) ? ui.pinned : null;
+
+  const tile = (p: PlayerView, variant: "panel" | "dock" = "panel") => {
+    const isMe = p.name === you;
+    const stream = isMe ? voice.local : voice.remote[p.name];
+    return (
+      <VoiceTile key={p.name} name={p.name} isMe={isMe} stream={stream} showVideo={Boolean(p.voice?.cam) && Boolean(stream)}
+        micOn={Boolean(p.voice?.mic)} talking={Boolean(voice.speaking[p.name])} pinned={pinned === p.name} onPin={() => ui.togglePin(p.name)}
+        volume={voice.userVolumes[p.name] ?? 1} onVolume={(v) => voice.setUserVolume(p.name, v)}
+        onFlip={isTouch() ? () => void voice.flipCamera() : undefined} variant={variant} />
+    );
+  };
+
   return (
     <section className="rg-card vc" aria-label="Voice and camera">
-      <h3 className="rg-h3">Voice &amp; camera</h3>
+      <div className="vc-head">
+        <h3 className="rg-h3">Voice &amp; camera</h3>
+        {voice.joined && (
+          <div className="vc-seg" role="group" aria-label="Camera size">
+            {SIZES.map((s) => (
+              <button key={s.id} type="button" className={ui.size === s.id ? "on" : ""} aria-pressed={ui.size === s.id} onClick={() => ui.setSize(s.id)}>{s.label}</button>
+            ))}
+          </div>
+        )}
+      </div>
+
       {!voice.supported ? (
-        <p className="rg-dim rg-small">Voice needs a secure connection (HTTPS or localhost) and a browser with WebRTC.</p>
+        <p className="rg-dim rg-small">Voice needs a browser with WebRTC.</p>
       ) : !voice.joined ? (
         <>
           <p className="rg-dim rg-small">Talk with the room while you hunt. Voice and video go straight between players and are never recorded or stored by the server. Your browser will ask for permission.</p>
+          {!voice.canSend && <p className="rg-warn rg-small">This page is not on HTTPS, so your mic and camera are blocked. You can still join to listen and watch.</p>}
           <button type="button" className="rg-btn small" onClick={() => void voice.join()} disabled={voice.busy || !mine}>
-            {voice.busy ? "Joining…" : "Join voice"}
+            {voice.busy ? "Joining…" : voice.canSend ? "Join voice" : "Join to listen"}
           </button>
           {inVoice.length > 0 && <p className="rg-dim rg-small vc-count">{inVoice.length} in voice now</p>}
         </>
@@ -63,27 +69,35 @@ export function VoicePanel({ voice, players, you }: { voice: VoiceApi; players: 
         <>
           <div className="vc-bar">
             <button type="button" className={`vc-btn${voice.mic ? " on" : ""}`} onClick={voice.toggleMic} aria-pressed={voice.mic} title="Mic (M)">
-              <MicIcon off={!voice.mic} /><span>{voice.mic ? "Mic on" : "Muted"}</span>
+              {voice.mic ? <Mic size={16} /> : <MicOff size={16} />}<span>{voice.mic ? "Mic on" : "Muted"}</span>
             </button>
             <button type="button" className={`vc-btn${voice.cam ? " on" : ""}`} onClick={() => void voice.toggleCam()} aria-pressed={voice.cam} title="Camera (V)">
-              <CamIcon off={!voice.cam} /><span>{voice.cam ? "Cam on" : "Cam off"}</span>
+              {voice.cam ? <Video size={16} /> : <VideoOff size={16} />}<span>{voice.cam ? "Cam on" : "Cam off"}</span>
             </button>
-            <button type="button" className="vc-btn leave" onClick={voice.leave} title="Leave voice"><span>Leave</span></button>
+            {voice.cam && isTouch() && (
+              <button type="button" className="vc-btn" onClick={() => void voice.flipCamera()} title="Switch camera"><SwitchCamera size={16} /><span>Flip</span></button>
+            )}
+            <button type="button" className="vc-btn leave" onClick={voice.leave} title="Leave voice"><PhoneOff size={16} /><span>Leave</span></button>
           </div>
-          <ul className="vc-tiles">
-            {inVoice.map((p) => {
-              const isMe = p.name === you;
-              const stream = isMe ? voice.local : voice.remote[p.name];
-              const showVideo = Boolean(p.voice?.cam) && Boolean(stream);
-              return (
-                <li key={p.name} className={`vc-tile${voice.speaking[p.name] ? " talking" : ""}`}>
-                  {showVideo && stream ? <Feed stream={stream} mirror={isMe} /> : <span className="vc-av"><Avatar name={p.name} size={44} /></span>}
-                  <span className="vc-name">{isMe ? "You" : p.name}</span>
-                  {!p.voice?.mic && <span className="vc-mute" title="Muted"><MicIcon off /></span>}
-                </li>
-              );
-            })}
+
+          {voice.cam && (
+            <label className="vc-q">
+              <span className="rg-dim rg-small">Your camera quality</span>
+              <select value={voice.camQuality} onChange={(e) => voice.setCamQuality(e.target.value as CamQuality)} aria-label="Camera quality">
+                {QUALITIES.map((q) => <option key={q.id} value={q.id}>{q.label}</option>)}
+              </select>
+            </label>
+          )}
+
+          {voice.audioBlocked && (
+            <button type="button" className="vc-tap" onClick={voice.enableAudio}>Tap to turn the sound on</button>
+          )}
+
+          {pinned && <div className="vc-spot">{inVoice.filter((p) => p.name === pinned).map((p) => tile(p))}</div>}
+          <ul className="vc-tiles" data-size={ui.size}>
+            {inVoice.filter((p) => p.name !== pinned).map((p) => <li key={p.name}>{tile(p)}</li>)}
           </ul>
+          {!voice.canSend && <p className="rg-dim rg-small">Listening only: this page is not on HTTPS.</p>}
           {voice.error && <p className="rg-warn rg-small" role="status">{voice.error}</p>}
         </>
       )}
