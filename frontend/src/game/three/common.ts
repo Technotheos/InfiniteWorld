@@ -40,14 +40,14 @@ function disposeScene(scene: THREE.Scene) {
 }
 
 /** Creates a renderer inside `host` and runs the loop. Returns null when WebGL is unavailable. */
-export function createStage(host: HTMLElement, opts: { fov?: number } = {}): Stage | null {
+export function createStage(host: HTMLElement, opts: { fov?: number; lowPower?: boolean } = {}): Stage | null {
   let renderer: THREE.WebGLRenderer;
   try {
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+    renderer = new THREE.WebGLRenderer({ antialias: !opts.lowPower, alpha: false, powerPreference: "high-performance" });
   } catch {
     return null;
   }
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, opts.lowPower ? 1.5 : 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
