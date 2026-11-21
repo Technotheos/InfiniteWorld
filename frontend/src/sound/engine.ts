@@ -319,6 +319,12 @@ const SCENES: Record<string, Scene> = {
     air: { type: 'bandpass', freq: 420, q: 1.2, gain: 0.025, sway: 0.1 },
     notes: { pitches: [196, 233.1], wave: 'sine', dur: 4.5, gain: 0.05, every: [7, 14], overtone: 2.4 },
   },
+  // The Cursed Relic: wind in the dead trees, a slow low drone, a far-off bell that never resolves
+  'cursed-relic': {
+    pad: { freqs: [49, 49.7, 73.4], type: 'sawtooth', lp: 180, gain: 0.05, sway: 0.03 },
+    air: { type: 'bandpass', freq: 520, q: 1.4, gain: 0.03, sway: 0.14 },
+    notes: { pitches: [164.8, 174.6, 246.9], wave: 'sine', dur: 5, gain: 0.04, every: [6, 12], overtone: 2.7 },
+  },
   // the two labs
   'chain-lab': {
     pad: { freqs: [98, 147, 196], type: 'sine', lp: 700, gain: 0.04, sway: 0.05 },

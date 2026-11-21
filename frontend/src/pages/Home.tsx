@@ -407,21 +407,21 @@ export default function Home({
             </div>
           </motion.header>
 
-          {/* Friends and online status, right at the top */}
-          <motion.div {...rise(0.5)}>
+          <motion.p {...rise(0.5)} className="iw-display italic font-light text-xl leading-relaxed text-[#b9b3c4] max-w-4xl">
+            “Time is not a currency to be spent, but an orbit—choose to revolve around what anchors your spirit, deepens your bonds, and expands your universe.”
+          </motion.p>
+
+          {/* Friends and online status, right under the quote */}
+          <motion.div {...rise(1)}>
             <FriendsPanel />
           </motion.div>
 
           {/* Phones: the slug basket is a slim glass strip near the top */}
           {!isDesktop && (
-            <motion.section {...rise(0.8)} aria-label="Slug Squad">
+            <motion.section {...rise(1.2)} aria-label="Slug Squad">
               <SlugDock layout="inline" />
             </motion.section>
           )}
-
-          <motion.p {...rise(1)} className="iw-display italic font-light text-xl leading-relaxed text-[#b9b3c4] max-w-4xl">
-            “Time is not a currency to be spent, but an orbit—choose to revolve around what anchors your spirit, deepens your bonds, and expands your universe.”
-          </motion.p>
 
           {/* Featured room: Chain Security Lab */}
           <motion.section {...rise(2)} aria-label="Chain Security Lab">
