@@ -7,13 +7,17 @@ import { Scoreboard } from "./Scoreboard";
 import { Avatar, MissionIcon, TimerBar, useCountdown } from "./ui";
 import { Bazaar } from "./missions/Bazaar";
 import { Mystery } from "./missions/Mystery";
+import { Relic } from "./missions/Relic";
+import { VoicePanel } from "./voice/VoicePanel";
+import { VoiceContext } from "./voice/VoiceContext";
+import { useVoice } from "./voice/useVoice";
 import { Cipher } from "./missions/Cipher";
 import { MathSprint } from "./missions/MathSprint";
 import { Reaction } from "./missions/Reaction";
 import { Talk } from "./missions/Talk";
 import { Typing } from "./missions/Typing";
 import type {
-  BazaarPlay, BazaarPrivate, ChatMsg, CipherPlay, MysteryPlay, MysteryPrivate, CipherPrivate, MathPrivate, MissionProps, ReactionPlay, ReactionPrivate, SendFn,
+  BazaarPlay, BazaarPrivate, ChatMsg, CipherPlay, MysteryPlay, MysteryPrivate, RelicPrivate, RtcSignal, CipherPrivate, MathPrivate, MissionProps, ReactionPlay, ReactionPrivate, SendFn,
   StateView, TalkPlay, TalkPrivate, TypingPlay,
 } from "./types";
 import type { ConnStatus } from "./useGameSocket";
@@ -25,6 +29,8 @@ export interface GameViewProps {
   status: ConnStatus;
   skew: number;
   send: SendFn;
+  /** Subscribes to WebRTC signalling (only rooms with voice use it). Absent in previews and tests. */
+  onRtc?: (fn: (s: RtcSignal) => void) => () => void;
   onLeave: () => void;
 }
 
@@ -48,8 +54,9 @@ function useGameSounds(state: StateView) {
 }
 
 /** Pure view of one room state. No sockets in here, so it is easy to preview and test. */
-export function GameView({ state, chat, typing = [], status, skew, send, onLeave }: GameViewProps) {
+export function GameView({ state, chat, typing = [], status, skew, send, onRtc, onLeave }: GameViewProps) {
   useGameSounds(state);
+  const voice = useVoice({ state, send, onRtc });
   const [copied, setCopied] = useState(false);
   const copy = () => {
     void navigator.clipboard?.writeText(state.code).then(() => {
@@ -59,6 +66,7 @@ export function GameView({ state, chat, typing = [], status, skew, send, onLeave
   };
 
   return (
+    <VoiceContext.Provider value={state.map.voice ? voice : null}>
     <div className="rg-root" data-theme={state.map.theme}>
       <Ambient scene={state.map.id} />
       <header className="rg-top">
@@ -85,11 +93,13 @@ export function GameView({ state, chat, typing = [], status, skew, send, onLeave
           <Stage state={state} skew={skew} send={send} />
         </section>
         <aside className="rg-side">
+          {state.map.voice && <VoicePanel voice={voice} players={state.players} you={state.you} />}
           <Scoreboard players={state.players} you={state.you} phase={state.phase} />
           <Chat messages={chat} you={state.you} send={send} typing={typing} />
         </aside>
       </main>
     </div>
+    </VoiceContext.Provider>
   );
 }
 
@@ -182,7 +192,7 @@ function Playing({ state, skew, send }: { state: StateView; skew: number; send: 
   if (!play) return null;
   const common = { players: state.players, you: state.you, send };
   let body: JSX.Element | null = null;
-  if (state.spectating) {
+  if (state.spectating && play.kind !== "relic") {
     body = <p className="rg-dim rg-center-text">Watching {state.brief?.title}…</p>;
   } else {
     switch (play.kind) {
@@ -191,6 +201,7 @@ function Playing({ state, skew, send }: { state: StateView; skew: number; send: 
       case "typing": body = <Typing {...(common as Omit<MissionProps<TypingPlay>, "play" | "priv">)} play={play} priv={undefined} />; break;
       case "cipher": body = <Cipher {...(common as Omit<MissionProps<CipherPlay, CipherPrivate>, "play" | "priv">)} play={play} priv={state.private as CipherPrivate | undefined} />; break;
       case "bazaar": body = <Bazaar {...common} play={play} priv={state.private as BazaarPrivate | undefined} />; break;
+      case "relic": body = <Relic {...common} play={play} priv={state.private as RelicPrivate | undefined} skew={skew} spectating={state.spectating} />; break;
       case "mystery": body = <Mystery {...common} play={play} priv={state.private as MysteryPrivate | undefined} />; break;
       case "talk": body = <Talk {...(common as Omit<MissionProps<TalkPlay, TalkPrivate>, "play" | "priv">)} play={play} priv={state.private as TalkPrivate | undefined} />; break;
     }
