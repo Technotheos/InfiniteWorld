@@ -30,6 +30,8 @@ export interface RelicSceneState {
   localVideo?: HTMLVideoElement | null;
   onMove: (x: number, z: number, ry: number) => void;
   onLocal?: (x: number, z: number) => void;
+  /** Called once, after the first frames have been drawn. */
+  onReady?: () => void;
 }
 
 const HEAT_COL = [0x4f6bff, 0x38bdf8, 0xf5c14a, 0xff8a2a, 0xff2a3a];
@@ -113,12 +115,12 @@ function deadTree(r: () => number, scale = 1) {
   return g;
 }
 
-function buildLandmark(i: number, zone: { x: number; z: number }, r: () => number) {
+function buildLandmark(i: number, zone: { x: number; z: number }, r: () => number, low = false) {
   const g = new THREE.Group();
   g.position.set(zone.x, heightAt(zone.x, zone.z), zone.z);
   const stone = mat(0x4a4d5a, { roughness: 1 });
   const tint = [0x3dff9a, 0x6fb7ff, 0xe8e0c8, 0xffb84d][i % 4];
-  const lamp = new THREE.PointLight(tint, 9, 14, 2); lamp.position.y = 2.2; g.add(lamp);
+  if (!low) { const lamp = new THREE.PointLight(tint, 9, 14, 2); lamp.position.y = 2.2; g.add(lamp); } // phones skip these lights: each one costs every pixel
   const rune = new THREE.Mesh(new THREE.RingGeometry(ZONE_RADIUS - 0.25, ZONE_RADIUS, 64), new THREE.MeshBasicMaterial({ color: tint, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false }));
   rune.rotation.x = -Math.PI / 2; rune.position.y = 0.06; g.add(rune);
 
@@ -193,17 +195,17 @@ function makeAvatar(name: string, mine: boolean) {
 
 // ---- the scene -----------------------------------------------------------------------------------------
 
-export function buildRelic(stage: Stage, host: HTMLElement) {
+export function buildRelic(stage: Stage, host: HTMLElement, low = false) {
   const { scene, camera } = stage;
   const reduced = stage.reduced;
-  if (stage.renderer) { stage.renderer.shadowMap.enabled = true; stage.renderer.shadowMap.type = THREE.PCFSoftShadowMap; stage.renderer.toneMappingExposure = 1.15; }
+  if (stage.renderer) { stage.renderer.shadowMap.enabled = !low; stage.renderer.shadowMap.type = THREE.PCFSoftShadowMap; stage.renderer.toneMappingExposure = 1.15; }
   scene.background = new THREE.Color(0x070b16);
   scene.fog = new THREE.FogExp2(0x0a1020, 0.026);
   camera.fov = 52; camera.near = 0.2; camera.far = 160; camera.updateProjectionMatrix();
 
   const hemi = new THREE.HemisphereLight(0x6f8cc8, 0x141018, 0.9); scene.add(hemi);
   const moon = new THREE.DirectionalLight(0xaec6ff, 1.5); moon.position.set(-22, 34, -14);
-  moon.castShadow = true; moon.shadow.mapSize.set(1536, 1536);
+  moon.castShadow = !low; moon.shadow.mapSize.set(1536, 1536);
   Object.assign(moon.shadow.camera, { left: -34, right: 34, top: 34, bottom: -34, near: 1, far: 90 }); moon.shadow.bias = -0.0004;
   scene.add(moon, moon.target);
 
@@ -215,7 +217,7 @@ export function buildRelic(stage: Stage, host: HTMLElement) {
   const moonMesh = new THREE.Mesh(new THREE.SphereGeometry(5, 24, 18), new THREE.MeshBasicMaterial({ color: 0xe9f0ff, fog: false })); moonMesh.position.set(-60, 70, -45); scene.add(moonMesh);
 
   // terrain
-  const SIZE = 84, SEG = 110;
+  const SIZE = 84, SEG = low ? 56 : 110;
   const tg = new THREE.PlaneGeometry(SIZE, SIZE, SEG, SEG); tg.rotateX(-Math.PI / 2);
   const tp = tg.attributes.position; const tcol = new Float32Array(tp.count * 3); const tr = rng(5); const c = new THREE.Color();
   for (let i = 0; i < tp.count; i++) {
@@ -228,18 +230,18 @@ export function buildRelic(stage: Stage, host: HTMLElement) {
 
   // static dressing: gravestones, rocks, a ring of dead trees outside the playable square
   const pr = rng(2026);
-  const stones = new THREE.InstancedMesh(new THREE.BoxGeometry(0.7, 1.1, 0.2), mat(0x585c6a), 70); stones.castShadow = true;
+  const stones = new THREE.InstancedMesh(new THREE.BoxGeometry(0.7, 1.1, 0.2), mat(0x585c6a), low ? 36 : 70); stones.castShadow = !low;
   const dummy = new THREE.Object3D();
-  for (let i = 0; i < 70; i++) {
+  for (let i = 0; i < (low ? 36 : 70); i++) {
     let x, z; do { x = (pr() - 0.5) * 52; z = (pr() - 0.5) * 52; } while (Math.hypot(x, z) < 6);
     dummy.position.set(x, heightAt(x, z) + 0.45, z); dummy.rotation.set((pr() - 0.5) * 0.25, pr() * 6.28, (pr() - 0.5) * 0.3); dummy.scale.setScalar(0.7 + pr() * 0.7); dummy.updateMatrix(); stones.setMatrixAt(i, dummy.matrix);
   }
   scene.add(stones);
-  const rocks = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(0.5, 0), mat(0x3b3e48), 50);
-  for (let i = 0; i < 50; i++) { const x = (pr() - 0.5) * 56, z = (pr() - 0.5) * 56; dummy.position.set(x, heightAt(x, z) + 0.1, z); dummy.rotation.set(pr() * 3, pr() * 3, pr() * 3); dummy.scale.set(0.5 + pr(), 0.4 + pr() * 0.6, 0.5 + pr()); dummy.updateMatrix(); rocks.setMatrixAt(i, dummy.matrix); }
+  const rocks = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(0.5, 0), mat(0x3b3e48), low ? 24 : 50);
+  for (let i = 0; i < (low ? 24 : 50); i++) { const x = (pr() - 0.5) * 56, z = (pr() - 0.5) * 56; dummy.position.set(x, heightAt(x, z) + 0.1, z); dummy.rotation.set(pr() * 3, pr() * 3, pr() * 3); dummy.scale.set(0.5 + pr(), 0.4 + pr() * 0.6, 0.5 + pr()); dummy.updateMatrix(); rocks.setMatrixAt(i, dummy.matrix); }
   scene.add(rocks);
-  for (let i = 0; i < 34; i++) {
-    const a = (i / 34) * Math.PI * 2, d = 32 + pr() * 7; const t = deadTree(pr, 1.3);
+  for (let i = 0; i < (low ? 18 : 34); i++) {
+    const a = (i / (low ? 18 : 34)) * Math.PI * 2, d = 32 + pr() * 7; const t = deadTree(pr, 1.3);
     t.position.set(Math.cos(a) * d, heightAt(Math.cos(a) * d, Math.sin(a) * d) - 0.1, Math.sin(a) * d); t.rotation.y = pr() * 6; scene.add(t);
   }
 
@@ -260,7 +262,7 @@ export function buildRelic(stage: Stage, host: HTMLElement) {
     const key = zones.map((z) => `${z.x},${z.z}`).join("|");
     if (key === lmKey) return;
     for (const l of landmarks) scene.remove(l);
-    landmarks = zones.map((z, i) => buildLandmark(i, z, lmr)); lmKey = key;
+    landmarks = zones.map((z, i) => buildLandmark(i, z, lmr, low)); lmKey = key;
     strands.length = 0;
     for (const l of landmarks) { scene.add(l); l.traverse((o) => { if (o.name === "strand") strands.push(o); }); }
   };
@@ -291,12 +293,12 @@ export function buildRelic(stage: Stage, host: HTMLElement) {
   let mistLevel = 0;
 
   // fireflies and wail wisps
-  const FF = 140; const ffPos = new Float32Array(FF * 3); const ffSeed = new Float32Array(FF);
+  const FF = low ? 60 : 140; const ffPos = new Float32Array(FF * 3); const ffSeed = new Float32Array(FF);
   for (let i = 0; i < FF; i++) { ffPos.set([(Math.random() - 0.5) * 60, 0.5 + Math.random() * 2.5, (Math.random() - 0.5) * 60], i * 3); ffSeed[i] = Math.random() * 6.28; }
   const ffGeo = new THREE.BufferGeometry(); ffGeo.setAttribute("position", new THREE.BufferAttribute(ffPos, 3));
   const ffMat = new THREE.PointsMaterial({ size: 0.16, color: 0xd8ff7a, transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending });
   scene.add(new THREE.Points(ffGeo, ffMat));
-  const sparks = createParticles(scene, 420, 0.17, 8);
+  const sparks = createParticles(scene, low ? 240 : 420, 0.17, 8);
 
   // heat ripples that leave the lantern
   const ripples = []; for (let i = 0; i < 5; i++) {
@@ -313,6 +315,7 @@ export function buildRelic(stage: Stage, host: HTMLElement) {
   const holes = []; const seenHoles = { n: 0 };
   const me = { x: 0, z: 0, ry: 0, init: false, moving: false, lastSent: 0, lastX: 1e9, lastZ: 1e9 };
   const cam = { yaw: Math.PI, pitch: 0.5, dist: 8.5, pos: new THREE.Vector3(0, 8, 12), look: new THREE.Vector3(), shake: 0 };
+  let frameN = 0;
   let lastPhase = ""; let revealDone = false; let revealAt = 0; let lastDig = 0; let lastWails = 0; let flash = 0; let heartT = 0; let rippleT = 0;
   const keys = new Set<string>();
   const phaseElapsed = () => (S ? Math.max(0, (Date.now() + S.skew - S.play.phase_at) / 1000) : 0);
@@ -323,10 +326,20 @@ export function buildRelic(stage: Stage, host: HTMLElement) {
   const ku = (e: KeyboardEvent) => keys.delete(e.key.toLowerCase());
   const blur = () => keys.clear();
   window.addEventListener("keydown", kd); window.addEventListener("keyup", ku); window.addEventListener("blur", blur);
-  let drag: { x: number; y: number; id: number } | null = null;
-  const pd = (e: PointerEvent) => { drag = { x: e.clientX, y: e.clientY, id: e.pointerId }; try { host.setPointerCapture(e.pointerId); } catch { /* ignore */ } };
-  const pm = (e: PointerEvent) => { if (!drag || drag.id !== e.pointerId) return; cam.yaw -= (e.clientX - drag.x) * 0.006; cam.pitch = Math.min(1.1, Math.max(0.15, cam.pitch + (e.clientY - drag.y) * 0.004)); drag.x = e.clientX; drag.y = e.clientY; };
-  const pu = (e: PointerEvent) => { if (drag && drag.id === e.pointerId) drag = null; };
+  // pointers: one finger/mouse drags to look, two fingers pinch to zoom
+  const ptrs = new Map<number, { x: number; y: number }>(); let pinch0 = 0, dist0 = 8; let lastDragAt = -1e9;
+  const pair = () => { const [a, b] = [...ptrs.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+  const pd = (e: PointerEvent) => {
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); try { host.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+    if (ptrs.size === 2) { pinch0 = pair() || 1; dist0 = cam.dist; }
+  };
+  const pm = (e: PointerEvent) => {
+    const p = ptrs.get(e.pointerId); if (!p) return;
+    const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY; lastDragAt = performance.now();
+    if (ptrs.size >= 2) cam.dist = Math.min(16, Math.max(4.5, dist0 * pinch0 / (pair() || 1)));
+    else { cam.yaw -= dx * 0.006; cam.pitch = Math.min(1.1, Math.max(0.15, cam.pitch + dy * 0.004)); }
+  };
+  const pu = (e: PointerEvent) => { ptrs.delete(e.pointerId); };
   const wheel = (e: WheelEvent) => { e.preventDefault(); cam.dist = Math.min(16, Math.max(4.5, cam.dist + e.deltaY * 0.008)); };
   host.style.touchAction = "none";
   host.addEventListener("pointerdown", pd); host.addEventListener("pointermove", pm); host.addEventListener("pointerup", pu); host.addEventListener("pointercancel", pu); host.addEventListener("wheel", wheel, { passive: false });
@@ -346,6 +359,7 @@ export function buildRelic(stage: Stage, host: HTMLElement) {
   // ---- per-frame ----------------------------------------------------------------------------------------
   stage.frame((t, dt) => {
     if (!S) return;
+    if (++frameN === 3) S.onReady?.();
     const p = S.play; const phase = p.phase; const e = phaseElapsed();
     const hunting = phase === "hunt" || phase === "found";
     ensureLandmarks(p.zones); ensureRelic(p.relic.key);
@@ -377,6 +391,8 @@ export function buildRelic(stage: Stage, host: HTMLElement) {
       me.x = Math.max(-27.6, Math.min(27.6, me.x + dx * SPEED * dt)); me.z = Math.max(-27.6, Math.min(27.6, me.z + dz * SPEED * dt));
       const want = Math.atan2(dx, dz); let d = want - me.ry; d = Math.atan2(Math.sin(d), Math.cos(d)); me.ry += d * damp(12, dt);
       const now = performance.now();
+      // One-thumb play: while walking mostly forward and not dragging, the camera swings round behind you.
+      if (iy > 0.4 && ptrs.size === 0 && now - lastDragAt > 900) { let dY = (me.ry + Math.PI) - cam.yaw; dY = Math.atan2(Math.sin(dY), Math.cos(dY)); cam.yaw += dY * damp(1.6, dt); }
       if (now - me.lastSent > 125 && (Math.abs(me.x - me.lastX) > 0.02 || Math.abs(me.z - me.lastZ) > 0.02)) { me.lastSent = now; me.lastX = me.x; me.lastZ = me.z; S.onMove(me.x, me.z, me.ry); }
     } else if (mine && hunting && me.init) {
       // stopped: if the server disagrees (it clamped a fast move), follow the server
@@ -523,8 +539,10 @@ export function buildRelic(stage: Stage, host: HTMLElement) {
 }
 
 export function createRelicScene(host: HTMLElement): SceneHandle<RelicSceneState> | null {
-  const stage = createStage(host, { fov: 52 });
+  // Phones and weak machines get a lighter version: no shadows, fewer lights and props, capped resolution.
+  const low = typeof matchMedia !== "undefined" && (matchMedia("(pointer: coarse)").matches || Math.min(window.innerWidth, window.innerHeight) < 600 || (navigator.hardwareConcurrency || 8) <= 4);
+  const stage = createStage(host, { fov: 52, lowPower: low });
   if (!stage) return null;
-  const built = buildRelic(stage, host);
+  const built = buildRelic(stage, host, low);
   return { update: built.update, dispose: () => { built.dispose(); stage.dispose(); } };
 }
