@@ -1,0 +1,25 @@
+/* Voice & camera panel. Uses the room's rg- tokens, so it follows each map's theme. */
+.vc { display: grid; gap: 10px; }
+.vc .rg-h3 { margin: 0; }
+.vc p { margin: 0; }
+.vc-count { opacity: .8; }
+.vc-bar { display: flex; gap: 8px; flex-wrap: wrap; }
+.vc-btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 12px; cursor: pointer; font: inherit; font-size: .82rem; font-weight: 600;
+  color: var(--dim); background: var(--glass); border: 1px solid var(--line); transition: transform .12s, border-color .12s, color .12s, background .12s;
+}
+.vc-btn:hover { transform: translateY(-1px); color: var(--ink); }
+.vc-btn.on { color: var(--ink); border-color: var(--ok); background: color-mix(in srgb, var(--ok) 16%, transparent); }
+.vc-btn.leave:hover { border-color: var(--bad); color: var(--bad); }
+.vc-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.vc-tiles { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+.vc-tile {
+  position: relative; aspect-ratio: 4 / 3; border-radius: 12px; overflow: hidden; display: grid; place-items: center;
+  background: rgba(0, 0, 0, .4); border: 1px solid var(--line); transition: box-shadow .15s, border-color .15s;
+}
+.vc-tile.talking { border-color: var(--ok); box-shadow: 0 0 0 2px color-mix(in srgb, var(--ok) 55%, transparent), 0 0 18px -2px var(--ok); }
+.vc-tile video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.vc-tile video.mirror { transform: scaleX(-1); }
+.vc-name { position: absolute; left: 6px; bottom: 5px; right: 28px; font-size: .7rem; font-weight: 700; text-shadow: 0 1px 3px #000; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vc-mute { position: absolute; right: 5px; bottom: 4px; color: var(--bad); display: grid; filter: drop-shadow(0 1px 2px #000); }
+.vc-mute svg { width: 15px; height: 15px; }
