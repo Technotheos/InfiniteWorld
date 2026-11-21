@@ -206,7 +206,7 @@ export default function Home({
   const [prefs] = usePrefs();
   const status = STATUS_STYLES[engineStatus];
 
-  // Laptops get the slug basket as a floating glass dock; phones get a strip at the top.
+  // Laptops get the slug basket in the left sidebar; phones get a slim row under the friends panel.
   const [isDesktop, setIsDesktop] = useState(() => window.matchMedia('(min-width: 768px)').matches);
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 768px)');
@@ -252,7 +252,7 @@ export default function Home({
   const navBtn = `w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-colors ${FOCUS}`;
 
   return (
-    <div className={`iw-root relative min-h-screen flex overflow-hidden ${prefs.ambient ? '' : 'iw-calm'}`}>
+    <div className={`iw-root relative h-screen h-[100dvh] flex overflow-hidden ${prefs.ambient ? '' : 'iw-calm'}`}>
       <Ambient scene="home" />
       {prefs.starfield && <Starfield ref={starfield} />}
 
@@ -275,7 +275,7 @@ export default function Home({
       {/* Sidebar */}
       <nav
         aria-label="Main"
-        className={`relative z-10 hidden md:flex w-64 shrink-0 bg-[#06050b]/80 backdrop-blur-xl border-r border-white/10 flex-col p-6 justify-between ${fade}`}
+        className={`relative z-10 hidden md:flex w-64 shrink-0 bg-[#06050b]/80 backdrop-blur-xl border-r border-white/10 flex-col p-6 justify-between gap-4 overflow-y-auto ${fade}`}
       >
         <div>
           <div className="flex items-center gap-2 mb-10">
@@ -308,6 +308,9 @@ export default function Home({
           </div>
         </div>
 
+        <div className="space-y-3">
+          {/* Slug basket: minimal, in the sidebar, never over the rooms */}
+          {isDesktop && <SlugDock layout="rail" />}
         <div className="pt-4 border-t border-white/10 flex items-center justify-between gap-1">
           <button
             onClick={onOpenSettings}
@@ -337,6 +340,7 @@ export default function Home({
           >
             <LogOut size={18} />
           </button>
+        </div>
         </div>
       </nav>
 
@@ -577,12 +581,6 @@ export default function Home({
         </div>
       </main>
 
-      {/* Laptop: slug basket, small frosted glass at the bottom-left (just right of the sidebar) */}
-      {isDesktop && (
-        <div className="fixed bottom-4 left-[17rem] z-30">
-          <SlugDock layout="dock" />
-        </div>
-      )}
     </div>
   );
 }
