@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { wsUrl } from "./gameApi";
-import type { ChatMsg, ClientMsgType, Hello, StateView } from "./types";
+import type { ChatMsg, ClientMsgType, Hello, RtcSignal, StateView } from "./types";
 import { getToken, refreshSession, subscribe } from "../session";
 
 export type ConnStatus = "connecting" | "open" | "reconnecting" | "closed";
@@ -21,6 +21,8 @@ export interface GameSocket {
   closeReason: string | null;
   authExpired: boolean;
   send: (type: ClientMsgType, payload?: unknown) => void;
+  /** Subscribe to WebRTC signalling relayed by the server. Returns the unsubscribe function. */
+  onRtc: (fn: (s: RtcSignal) => void) => () => void;
 }
 
 export function useGameSocket(code: string, token: string): GameSocket {
@@ -32,6 +34,7 @@ export function useGameSocket(code: string, token: string): GameSocket {
   const [closeReason, setCloseReason] = useState<string | null>(null);
   const [authExpired, setAuthExpired] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
+  const rtcSubs = useRef(new Set<(s: RtcSignal) => void>());
   // The token is read at connect time from a ref: when the session silently
   // refreshes every ~14 minutes the prop changes, and that must NOT drop the
   // player from a live game.
@@ -98,6 +101,9 @@ export function useGameSocket(code: string, token: string): GameSocket {
               return { ...m, reacts };
             }),
           );
+        } else if (msg.type === "rtc") {
+          const s = msg.payload as RtcSignal;
+          if (s && typeof s.from === "string" && typeof s.sdp === "string") rtcSubs.current.forEach((fn) => fn(s));
         } else if (msg.type === "typing") {
           const who = (msg.payload as { name: string }).name;
           typingUntil.set(who, Date.now() + TYPING_MS);
@@ -161,5 +167,10 @@ export function useGameSocket(code: string, token: string): GameSocket {
     if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type, payload }));
   }, []);
 
-  return { status, state, chat, typing, skew, closeReason, authExpired, send };
+  const onRtc = useCallback((fn: (s: RtcSignal) => void) => {
+    rtcSubs.current.add(fn);
+    return () => { rtcSubs.current.delete(fn); };
+  }, []);
+
+  return { status, state, chat, typing, skew, closeReason, authExpired, send, onRtc };
 }
