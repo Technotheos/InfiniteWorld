@@ -3,11 +3,20 @@ import { sfx } from "../../sound";
 import { useMascot, type Pose } from "../../mascot";
 import { Scene3D } from "../three/Scene3D";
 import { useVoiceContext } from "../voice/VoiceContext";
+import { VoiceDock } from "../voice/VoiceDock";
 import type { MissionProps, RelicPlay, RelicPrivate } from "../types";
 import type { RelicSceneState } from "../three/relicScene";
 import "../relic.css";
 
 const loadScene = () => import("../three/relicScene").then((m) => m.createRelicScene);
+/** Start downloading the 3D scene early (while people are still in the lobby) so the hunt starts instantly. */
+export const preloadRelicScene = () => { void loadScene().catch(() => undefined); };
+
+const isTouch = () => typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches;
+function hasWebGL() {
+  if (typeof document === "undefined") return true; // server-side render (smoke test): assume yes
+  try { const c = document.createElement("canvas"); return Boolean(c.getContext("webgl2") || c.getContext("webgl")); } catch { return false; }
+}
 
 const HEAT = [
   { label: "Cold", hint: "Nothing stirs here.", color: "#4f6bff" },
@@ -37,11 +46,17 @@ interface Props extends MissionProps<RelicPlay, RelicPrivate> {
 }
 
 export function Relic({ play, priv, you, players, send, skew = 0, spectating = false }: Props) {
-  const voice = useVoiceContext();
+  const vctx = useVoiceContext();
+  const voice = vctx?.voice;
   const mascot = useMascot();
   const mref = useRef(mascot);
   mref.current = mascot;
 
+  const stageEl = useRef<HTMLDivElement>(null);
+  const [ready, setReady] = useState(false);
+  const [webgl] = useState(hasWebGL);
+  const [immersive, setImmersive] = useState(false);
+  const [goUntil, setGoUntil] = useState(0);
   const joy = useRef({ x: 0, y: 0 });
   const [digCount, setDigCount] = useState(0);
   const [cool, setCool] = useState(0);
@@ -109,6 +124,59 @@ export function Relic({ play, priv, you, players, send, skew = 0, spectating = f
     prev.current = { phase: play.phase, wail: play.wail, heat, found, foundBy: play.found.length, digs: priv?.digs ?? digs, msg: priv?.msg ?? "" };
   }, [play.phase, play.wail, play.found.length, heat, found, priv, digs, hunting, spectating, react]);
 
+  // ---- a clean start: keys must reach the game, not a chat box or a button that still has focus ----
+  const focusStage = useCallback(() => {
+    const a = document.activeElement as HTMLElement | null;
+    if (a && a !== document.body && a !== stageEl.current && (a.tagName === "INPUT" || a.tagName === "TEXTAREA" || a.tagName === "BUTTON" || a.isContentEditable)) a.blur();
+    stageEl.current?.focus({ preventScroll: true });
+  }, []);
+  useEffect(() => {
+    if (play.phase === "show" || play.phase === "hunt") focusStage();
+    if (play.phase === "hunt") setGoUntil(Date.now() + 3600);
+  }, [play.phase, focusStage]);
+  useEffect(() => {
+    if (!goUntil) return;
+    const id = window.setTimeout(() => setGoUntil(0), Math.max(0, goUntil - Date.now()));
+    return () => window.clearTimeout(id);
+  }, [goUntil]);
+
+  // Phones: a full-screen mode that does not depend on the Fullscreen API (iPhone Safari has none for a div).
+  const toggleImmersive = useCallback(() => {
+    setImmersive((on) => {
+      const next = !on;
+      try {
+        if (next) {
+          void document.documentElement.requestFullscreen?.().catch(() => undefined);
+          void (screen.orientation as unknown as { lock?: (o: string) => Promise<void> })?.lock?.("landscape")?.catch(() => undefined);
+        } else {
+          if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+          screen.orientation?.unlock?.();
+        }
+      } catch { /* not supported: the CSS full-window mode still works */ }
+      return next;
+    });
+  }, []);
+  useEffect(() => {
+    const sync = () => { if (!document.fullscreenElement && document.body.classList.contains("rl-immersive")) setImmersive(false); };
+    document.addEventListener("fullscreenchange", sync);
+    return () => document.removeEventListener("fullscreenchange", sync);
+  }, []);
+  useEffect(() => {
+    document.body.classList.toggle("rl-immersive", immersive);
+    return () => document.body.classList.remove("rl-immersive");
+  }, [immersive]);
+  useEffect(() => {
+    // while the hunt is on, Embo must not sit on top of the thumb controls
+    document.body.classList.toggle("rl-hunt", hunting);
+    return () => document.body.classList.remove("rl-hunt");
+  }, [hunting]);
+  useEffect(() => {
+    if (!immersive) return;
+    const kd = (e: KeyboardEvent) => { if (e.key === "Escape") setImmersive(false); };
+    window.addEventListener("keydown", kd);
+    return () => window.removeEventListener("keydown", kd);
+  }, [immersive]);
+
   // ---- proximity voice: volume follows distance in the map ----
   useEffect(() => {
     if (!voice?.joined) return;
@@ -131,17 +199,9 @@ export function Relic({ play, priv, you, players, send, skew = 0, spectating = f
     return out;
   }, [names, you, voice?.cam, players]);
 
-  const localVideo = useMemo(() => {
-    if (!voice?.local) return null;
-    const v = document.createElement("video");
-    v.muted = true; v.playsInline = true; v.autoplay = true; v.srcObject = voice.local;
-    void v.play().catch(() => undefined);
-    return v;
-  }, [voice?.local]);
-
   const sceneState: RelicSceneState = {
     play, priv, you, skew, spectating, joy: joy.current, digCount, cams,
-    speaking: voice?.speaking ?? {}, videos: voice?.videos ?? {}, localVideo, onMove, onLocal,
+    speaking: voice?.speaking ?? {}, videos: voice?.videos ?? {}, localVideo: voice?.localVideo ?? null, onMove, onLocal, onReady: () => setReady(true),
   };
 
   const zone = play.zone !== undefined ? play.zones[play.zone] : null;
@@ -151,9 +211,22 @@ export function Relic({ play, priv, you, players, send, skew = 0, spectating = f
 
   return (
     <div className={`rl${play.wail && hunting ? " wail" : ""}`} style={{ ["--heat" as string]: H.color }}>
-      <div className="rl-stage">
+      <div className={`rl-stage${immersive ? " immersive" : ""}`} ref={stageEl} tabIndex={-1} onPointerDown={() => { if (stageEl.current && document.activeElement !== stageEl.current) focusStage(); }}>
         <Scene3D<RelicSceneState> load={loadScene} state={sceneState} className="rl-canvas" label="A haunted graveyard at night, seen from behind your character" />
+        {webgl && !ready && (
+          <div className="rl-veil" role="status"><i aria-hidden="true" /><span>Summoning the graveyard…</span></div>
+        )}
+        {!webgl && (
+          <div className="rl-veil solid" role="alert"><span>This device can not draw the 3D map. Try another browser, or another device.</span></div>
+        )}
         <div className="rl-flash" aria-hidden="true" />
+        {vctx && voice && <VoiceDock voice={voice} ui={vctx.ui} players={players} you={you} />}
+        {goUntil > Date.now() && hunting && !found && (
+          <div className="rl-go" role="status" aria-live="polite">
+            <b>The hunt begins</b>
+            <span>{isTouch() ? "Left stick to walk, drag to look, pinch to zoom, tap the pickaxe to dig" : "WASD or arrows to walk, drag to look, Space to dig"}</span>
+          </div>
+        )}
         {hunting && !found && <div className="rl-vignette" style={{ opacity: 0.12 + heat * 0.12 }} aria-hidden="true" />}
 
         {(play.phase === "show" || play.phase === "bury") && (
@@ -171,12 +244,13 @@ export function Relic({ play, priv, you, players, send, skew = 0, spectating = f
           </div>
         )}
 
-        {hunting && zone && (
-          <div className="rl-chips">
-            <span className="rl-chip">Buried near: <b>{zone.name}</b></span>
-            <span className="rl-chip dim">{play.found.length ? `${play.found.length} found it` : "Nobody has found it"}</span>
-          </div>
-        )}
+        <button type="button" className="rl-full" onClick={toggleImmersive} aria-pressed={immersive} aria-label={immersive ? "Exit full screen" : "Full screen"} title={immersive ? "Exit full screen (Esc)" : "Full screen"}>
+          {immersive ? "✕" : "⛶"}
+        </button>
+        <div className="rl-chips">
+          {hunting && zone && <span className="rl-chip">Near <b>{zone.name}</b></span>}
+          {hunting && play.found.length > 0 && <span className="rl-chip dim">{play.found.length} found it</span>}
+        </div>
 
         {lying && <div className="rl-wailbar" role="alert">THE CURSE IS LYING. Your lantern cannot be trusted.</div>}
         {play.phase === "found" && (
@@ -187,8 +261,8 @@ export function Relic({ play, priv, you, players, send, skew = 0, spectating = f
 
         {hunting && !spectating && (
           <>
-            <Joystick joy={joy.current} />
             <div className="rl-hud">
+              <Joystick joy={joy.current} />
               <div className="rl-heat" aria-label={`Lantern reading: ${lying ? "unreliable" : H.label}`}>
                 <div className="rl-heat-bars" aria-hidden="true">
                   {HEAT.map((h, i) => <i key={h.label} className={i <= heat ? "on" : ""} style={{ background: i <= heat ? h.color : undefined }} />)}
@@ -200,7 +274,7 @@ export function Relic({ play, priv, you, players, send, skew = 0, spectating = f
                 style={{ ["--cool" as string]: cool }}>
                 <span className="rl-dig-icon" aria-hidden="true">⛏</span>
                 <span className="rl-dig-n">{found ? "✓" : digs}</span>
-                <span className="rl-dig-l">{found ? "found" : "Dig (Space)"}</span>
+                <span className="rl-dig-l">{found ? "found" : isTouch() ? "Dig" : "Dig (Space)"}</span>
               </button>
             </div>
           </>
@@ -211,7 +285,7 @@ export function Relic({ play, priv, you, players, send, skew = 0, spectating = f
         {hunting ? (
           <p className="rg-dim rg-small" aria-live="polite">
             {priv?.msg ? <b className="rl-msg">{priv.msg} </b> : null}
-            WASD or arrows to walk, drag to look, Space to dig. Hot and cold readings steer you; a dig only counts where you stand.
+            {isTouch() ? "Stick to walk, drag to look, pinch to zoom, pickaxe to dig." : "WASD or arrows to walk, drag to look, Space to dig."} Hot and cold readings steer you; a dig only counts where you stand.
           </p>
         ) : (
           <p className="rg-dim rg-small">Watch closely. The ground will not tell you twice.</p>
