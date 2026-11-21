@@ -28,7 +28,7 @@ const expect: Record<string, RegExp> = {
   "mystery: unmask": /morpheus is caught![\s\S]*Where everyone really was/,
   "relic: show": /Behold[\s\S]*The Weeping Idol[\s\S]*Voice &amp; camera/,
   "relic: bury": /The burial[\s\S]*Drowned Chapel/,
-  "relic: hunt (cold)": /Buried near[\s\S]*Drowned Chapel[\s\S]*Cold/,
+  "relic: hunt (cold)": /Near <b>Drowned Chapel[\s\S]*Cold/,
   "relic: hunt (burning)": /Burning[\s\S]*Dig \(Space\)/,
   "relic: wail": /THE CURSE IS LYING[\s\S]*Readings scrambled/,
   "relic: found": /trinity<\/b> unearthed The Weeping Idol/,
