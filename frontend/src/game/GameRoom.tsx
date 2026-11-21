@@ -3,6 +3,7 @@ import { GameView } from "./GameView";
 import { useGameSocket } from "./useGameSocket";
 import "./game.css";
 import "./rooms.css";
+import "./relic.css";
 
 interface Props {
   code: string;
@@ -15,14 +16,14 @@ interface Props {
 
 /** Connects to a room and renders it. Mount at /play/:code. */
 export function GameRoom({ code, token, onLeave, onAuthExpired }: Props) {
-  const { status, state, chat, typing, skew, closeReason, authExpired, send } = useGameSocket(code, token);
+  const { status, state, chat, typing, skew, closeReason, authExpired, send, onRtc } = useGameSocket(code, token);
 
   useEffect(() => {
     if (authExpired) onAuthExpired?.();
   }, [authExpired, onAuthExpired]);
 
   if (state) {
-    return <GameView state={state} chat={chat} typing={typing} status={status} skew={skew} send={send} onLeave={onLeave} />;
+    return <GameView state={state} chat={chat} typing={typing} status={status} skew={skew} send={send} onRtc={onRtc} onLeave={onLeave} />;
   }
   return (
     <div className="rg-root rg-splash" data-theme="nebula">
