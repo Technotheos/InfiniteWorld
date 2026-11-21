@@ -25,7 +25,7 @@
 .rl-lore .rl-curse { color: var(--accent); font-style: italic; }
 @keyframes rl-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 
-.rl-chips { position: absolute; top: 12px; left: 12px; display: flex; gap: 8px; flex-wrap: wrap; pointer-events: none; }
+.rl-chips { position: absolute; top: 12px; left: 62px; z-index: 5; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; pointer-events: none; max-width: calc(100% - 74px); }
 .rl-chip { padding: 6px 12px; font-size: .78rem; border-radius: 999px; background: rgba(4, 8, 10, .7); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); backdrop-filter: blur(8px); }
 .rl-chip.dim { color: var(--dim); border-color: var(--line); }
 .rl-wailbar {
@@ -35,9 +35,9 @@
 .rl-found { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); padding: 12px 22px; border-radius: 14px; font-size: 1.1rem; text-align: center;
   background: rgba(4, 8, 10, .75); border: 1px solid var(--accent); box-shadow: 0 0 40px -6px var(--accent); animation: rl-rise .6s; max-width: calc(100% - 24px); }
 
-.rl-hud { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; padding: 14px; pointer-events: none; }
+.rl-hud { position: absolute; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 10px; padding: 14px; pointer-events: none; }
 .rl-hud > * { pointer-events: auto; }
-.rl-heat { display: grid; gap: 4px; padding: 10px 14px; border-radius: 14px; background: rgba(4, 8, 10, .72); border: 1px solid var(--line); backdrop-filter: blur(10px); min-width: 190px; margin-left: 120px; }
+.rl-heat { display: grid; gap: 4px; padding: 10px 14px; border-radius: 14px; background: rgba(4, 8, 10, .72); border: 1px solid var(--line); backdrop-filter: blur(10px); min-width: 190px; justify-self: start; }
 .rl-heat b { font-size: 1.15rem; letter-spacing: .04em; transition: color .3s; }
 .rl-heat-bars { display: flex; gap: 4px; }
 .rl-heat-bars i { flex: 1; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, .1); transition: background .3s, box-shadow .3s; }
@@ -54,20 +54,81 @@
 .rl-dig-n { font-weight: 800; font-size: 1.05rem; line-height: 1; }
 .rl-dig-l { font-size: .62rem; opacity: .75; letter-spacing: .04em; }
 
-.rl-joy { position: absolute; left: 16px; bottom: 16px; width: 96px; height: 96px; border-radius: 50%; touch-action: none; pointer-events: auto;
-  background: rgba(4, 8, 10, .55); border: 1px solid var(--line); display: grid; place-items: center; backdrop-filter: blur(6px); }
+.rl-joy { display: none; width: 108px; height: 108px; border-radius: 50%; touch-action: none; pointer-events: auto;
+  background: rgba(4, 8, 10, .62); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); place-items: center; backdrop-filter: blur(6px); }
 .rl-joy i { width: 38px; height: 38px; border-radius: 50%; background: color-mix(in srgb, var(--accent) 55%, transparent); border: 1px solid var(--accent); transition: transform .05s; }
-@media (hover: hover) and (pointer: fine) { .rl-joy { opacity: .45; } }
 
 .rl-foot { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; }
 .rl-foot p { margin: 0; flex: 1 1 280px; }
 .rl-msg { color: var(--accent); }
 .rl-prox { display: inline-flex; gap: 6px; align-items: center; font-size: .8rem; color: var(--dim); cursor: pointer; }
 .rl-prox input { accent-color: var(--accent); }
-@media (max-width: 640px) {
-  .rl-heat { min-width: 0; margin-left: 108px; padding: 8px 10px; }
-  .rl-dig { width: 76px; height: 76px; }
-}
+
 @media (prefers-reduced-motion: reduce) {
   .rl-wailbar, .rl.wail .rl-vignette, .rl-lore, .rl-found { animation: none; }
 }
+
+/* ---- start, focus, loading ---- */
+.rl-stage { touch-action: none; overscroll-behavior: contain; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+.rl-stage:focus { outline: none; }
+.rl-veil { position: absolute; inset: 0; z-index: 8; display: grid; place-content: center; justify-items: center; gap: 12px; text-align: center; padding: 20px; font-size: .9rem; color: var(--dim);
+  background: radial-gradient(ellipse at center, rgba(8, 16, 22, .55), rgba(4, 8, 10, .92)); animation: rl-fade .3s both; }
+.rl-veil.solid { background: #04080a; color: var(--ink); }
+.rl-veil i { width: 34px; height: 34px; border-radius: 50%; border: 3px solid color-mix(in srgb, var(--accent) 25%, transparent); border-top-color: var(--accent); animation: rl-spin .9s linear infinite; }
+@keyframes rl-spin { to { transform: rotate(360deg); } }
+@keyframes rl-fade { from { opacity: 0; } }
+.rl-go { position: absolute; left: 50%; top: 24%; transform: translateX(-50%); z-index: 5; display: grid; gap: 4px; justify-items: center; text-align: center; padding: 12px 20px; max-width: calc(100% - 24px);
+  border-radius: 16px; background: rgba(4, 8, 10, .74); border: 1px solid var(--accent); backdrop-filter: blur(8px); pointer-events: none; animation: rl-go 3.6s both; }
+.rl-go b { font-size: 1.3rem; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.rl-go span { font-size: .8rem; color: var(--dim); }
+@keyframes rl-go { 0% { opacity: 0; transform: translate(-50%, 10px); } 10%, 80% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; } }
+.rl-full {
+  position: absolute; left: 12px; top: 12px; z-index: 6; pointer-events: auto; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; font-size: 1.05rem; line-height: 1;
+  color: var(--ink); background: rgba(4, 8, 10, .7); border: 1px solid var(--line); backdrop-filter: blur(8px);
+}
+.rl-full:hover { border-color: var(--accent); }
+
+
+/* ---- full-window mode (phones) ---- */
+.rl-stage.immersive { position: fixed; inset: 0; z-index: 100; width: 100vw; height: 100vh; height: 100dvh; border-radius: 0; border: 0; }
+.rl-stage.immersive .rl-hud { padding: 14px max(14px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left)); }
+.rl-stage.immersive .rl-chips { top: max(12px, env(safe-area-inset-top)); left: calc(max(12px, env(safe-area-inset-left)) + 50px); }
+.rl-stage.immersive .rl-full { top: max(12px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); }
+.rl-stage.immersive .vd { top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); }
+body.rl-immersive { overflow: hidden; }
+
+/* Embo can still talk during the hunt, but he never swallows a touch meant for the controls */
+body.rl-hunt .em-body, body.rl-hunt .em-hide { pointer-events: none; }
+body.rl-immersive .em-wrap { z-index: 101; }
+@media (pointer: coarse) { body.rl-hunt .em-wrap { bottom: 136px; transform: scale(.72); transform-origin: bottom left; opacity: .92; } }
+
+/* ---- touch devices ---- */
+@media (pointer: coarse) {
+  .rl-hud { grid-template-columns: auto 1fr auto; padding: 12px; }
+  .rl-joy { display: grid; }
+  .rl-heat { justify-self: center; min-width: 0; width: 100%; max-width: 230px; }
+  .rl-dig { width: 92px; height: 92px; }
+}
+@media (max-width: 760px) {
+  .rl-stage { height: min(74svh, 640px); }
+  .rl-chips { top: 58px; left: 12px; max-width: 54%; }
+  .rl-stage.immersive .rl-chips { top: calc(max(12px, env(safe-area-inset-top)) + 46px); left: max(12px, env(safe-area-inset-left)); }
+  .rl-lore { left: 8px; right: 8px; bottom: 8px; max-width: none; padding: 10px 12px; }
+  .rl-lore h3 { font-size: 1.15rem; }
+  .rl-lore p { font-size: .8rem; margin-bottom: 4px; }
+  .rl-heat { padding: 8px 10px; }
+  .rl-heat .rg-small { display: none; }
+  .rl-wailbar { top: auto; bottom: 128px; font-size: .7rem; letter-spacing: .04em; }
+  .rl-go { top: 18%; }
+  .rl-found { font-size: .95rem; padding: 10px 16px; top: auto; bottom: 128px; }
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  .rl-stage { height: calc(100svh - 80px); min-height: 240px; }
+  .rl-joy { width: 92px; height: 92px; }
+  .rl-dig { width: 76px; height: 76px; }
+  .rl-lore { max-width: 340px; }
+}
+@media (prefers-reduced-motion: reduce) { .rl-go, .rl-veil { animation: none; } .rl-veil i { animation-duration: 2s; } }
+
+/* position: fixed is trapped by an ancestor's backdrop-filter, so while the map is full-window the cards drop it */
+body.rl-immersive .rg-card { backdrop-filter: none; -webkit-backdrop-filter: none; }
