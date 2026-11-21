@@ -28,6 +28,8 @@ const (
 	chatCooldown   = 700 * time.Millisecond
 	reactCooldown  = 250 * time.Millisecond
 	typingCooldown = 1500 * time.Millisecond
+	voiceCooldown  = 300 * time.Millisecond
+	maxSDPBytes    = 14000 // a video offer with every codec and ICE candidate is ~6-10 KB
 )
 
 // The reactions a player can tap on a chat message. Anything else is ignored.
@@ -58,6 +60,9 @@ type gamePlayer struct {
 	lastChat  time.Time
 	lastReact time.Time
 	lastType  time.Time
+	voiceOn   bool
+	mic, cam  bool
+	lastVoice time.Time
 }
 
 type GameRoom struct {
@@ -248,6 +253,7 @@ func (r *GameRoom) onLeave(c *gameClient) {
 		return // a stale connection (replaced by a newer one)
 	}
 	p.client = nil
+	p.voiceOn, p.mic, p.cam = false, false, false
 	presenceHub.ClearRoom(p.name, r.code)
 	if r.phase == phaseLobby || r.phase == phaseFinished || p.spectator || r.phase == phaseCountdown {
 		delete(r.players, p.name)
@@ -374,6 +380,35 @@ func (r *GameRoom) onMsg(ev roomEvent) {
 		}
 		p.lastType = now
 		r.broadcastExcept(p.name, Envelope{V: protocolVersion, Type: "typing", Payload: TypingView{Name: p.name}})
+	case "voice":
+		// Join or leave the room's voice chat, and say whether mic/camera are live (for the UI).
+		var v struct {
+			On  bool `json:"on"`
+			Mic bool `json:"mic"`
+			Cam bool `json:"cam"`
+		}
+		if !r.def.Voice || json.Unmarshal(ev.msg.Payload, &v) != nil || now.Sub(p.lastVoice) < voiceCooldown {
+			return
+		}
+		p.lastVoice = now
+		p.voiceOn, p.mic, p.cam = v.On, v.On && v.Mic, v.On && v.Cam
+		r.urgent = true
+	case "rtc":
+		// WebRTC signalling: the server only relays offers/answers between people who are both
+		// in the room's voice chat. The sender comes from the token, never from the message, and
+		// the server never looks inside the SDP. Media flows peer to peer, not through here.
+		var v struct {
+			To   string `json:"to"`
+			Kind string `json:"kind"`
+			SDP  string `json:"sdp"`
+		}
+		if !r.def.Voice || !p.voiceOn || json.Unmarshal(ev.msg.Payload, &v) != nil ||
+			(v.Kind != "offer" && v.Kind != "answer") || v.SDP == "" || len(v.SDP) > maxSDPBytes || v.To == p.name {
+			return
+		}
+		if t := r.players[v.To]; t != nil && t.voiceOn && t.client != nil {
+			r.sendTo(t, Envelope{V: protocolVersion, Type: "rtc", Payload: map[string]string{"from": p.name, "kind": v.Kind, "sdp": v.SDP}})
+		}
 	case "act":
 		if r.phase == phasePlaying && !p.spectator && r.mission != nil {
 			if r.mission.Handle(p.name, ev.msg.Payload, now) {
@@ -637,6 +672,9 @@ func (r *GameRoom) viewFor(me *gamePlayer, now time.Time) StateView {
 			Spectator: p.spectator, Host: p.name == r.host, Score: p.score, Gain: p.gain}
 		if playing && !p.spectator {
 			pv.Progress = r.mission.Progress(p.name)
+		}
+		if p.voiceOn {
+			pv.Voice = &VoiceView{On: true, Mic: p.mic, Cam: p.cam}
 		}
 		v.Players = append(v.Players, pv)
 	}
