@@ -6,7 +6,7 @@ import "encoding/json"
 // Envelope; every client message is a ClientMsg. Both are JSON text frames.
 //
 //	server -> client: {"v":1,"type":"hello|state|chat|error","payload":{...}}
-//	client -> server: {"type":"ready|start|chat|act|rematch|react|typing","payload":{...}}
+//	client -> server: {"type":"ready|start|chat|act|rematch|react|typing|voice|rtc","payload":{...}}
 //
 // The server owns all game state. Clients only send intentions ("I clicked",
 // "my typed text is ..."); the server decides what they mean and what they score.
@@ -49,7 +49,15 @@ type MapInfo struct {
 	Mode       string        `json:"mode"`
 	MinPlayers int           `json:"min_players"`
 	MaxPlayers int           `json:"max_players"`
+	Voice      bool          `json:"voice,omitempty"`
 	Missions   []MissionInfo `json:"missions"`
+}
+
+// VoiceView says who is in the voice/video chat and whether their mic and camera are live.
+type VoiceView struct {
+	On  bool `json:"on"`
+	Mic bool `json:"mic"`
+	Cam bool `json:"cam"`
 }
 
 type PlayerView struct {
@@ -61,6 +69,7 @@ type PlayerView struct {
 	Score     int     `json:"score"`
 	Gain      int     `json:"gain"`
 	Progress  float64 `json:"progress"`
+	Voice     *VoiceView `json:"voice,omitempty"`
 }
 
 type BriefView struct {
