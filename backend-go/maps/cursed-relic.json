@@ -1,0 +1,25 @@
+{
+  "id": "cursed-relic",
+  "name": "The Cursed Relic",
+  "tagline": "Watch it get buried. Then find it before the curse finds you. Voice and camera on.",
+  "theme": "crypt",
+  "mode": "versus",
+  "voice": true,
+  "min_players": 2,
+  "max_players": 6,
+  "briefing_ms": 4000,
+  "missions": [
+    {
+      "kind": "relic",
+      "title": "Dig Up the Relic",
+      "brief": "A cursed object will be shown, then buried. Follow the heat, dig fast, and do not trust the Wail.",
+      "duration_ms": 150000
+    },
+    {
+      "kind": "relic",
+      "title": "Second Burial",
+      "brief": "A new relic, a new grave. Same curse, and it has learned how you search.",
+      "duration_ms": 150000
+    }
+  ]
+}
