@@ -1,25 +1,85 @@
-/* Voice & camera panel. Uses the room's rg- tokens, so it follows each map's theme. */
+/* Voice & camera: the side panel, the strip over the 3D map, and the tiles they share. Uses the room's rg- tokens. */
 .vc { display: grid; gap: 10px; }
-.vc .rg-h3 { margin: 0; }
 .vc p { margin: 0; }
+.vc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.vc-head .rg-h3 { margin: 0; }
 .vc-count { opacity: .8; }
+.vc-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.vc-seg button { background: none; border: 0; color: var(--dim); font: inherit; font-size: .72rem; font-weight: 700; padding: 5px 10px; cursor: pointer; min-width: 30px; min-height: 28px; }
+.vc-seg button.on { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--ink); }
 .vc-bar { display: flex; gap: 8px; flex-wrap: wrap; }
 .vc-btn {
-  display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 12px; cursor: pointer; font: inherit; font-size: .82rem; font-weight: 600;
+  display: inline-flex; align-items: center; gap: 6px; padding: 9px 12px; min-height: 40px; border-radius: 12px; cursor: pointer; font: inherit; font-size: .82rem; font-weight: 600;
   color: var(--dim); background: var(--glass); border: 1px solid var(--line); transition: transform .12s, border-color .12s, color .12s, background .12s;
 }
 .vc-btn:hover { transform: translateY(-1px); color: var(--ink); }
 .vc-btn.on { color: var(--ink); border-color: var(--ok); background: color-mix(in srgb, var(--ok) 16%, transparent); }
 .vc-btn.leave:hover { border-color: var(--bad); color: var(--bad); }
-.vc-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.vc-tiles { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
-.vc-tile {
+.vc-btn:focus-visible, .vd-b:focus-visible, .vt-ctl button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.vc-q { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.vc-q select { background: var(--glass); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font: inherit; font-size: .8rem; }
+.vc-tap, .vd-tap { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--ink); border: 1px solid var(--accent); border-radius: 10px; padding: 9px 12px; font: inherit; font-weight: 700; cursor: pointer; }
+.vc-spot .vt { aspect-ratio: 4 / 3; width: 100%; }
+.vc-tiles { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+.vc-tiles[data-size="s"] { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); }
+.vc-tiles[data-size="l"] { grid-template-columns: 1fr; }
+
+/* ---- one tile ---- */
+.vt {
   position: relative; aspect-ratio: 4 / 3; border-radius: 12px; overflow: hidden; display: grid; place-items: center;
   background: rgba(0, 0, 0, .4); border: 1px solid var(--line); transition: box-shadow .15s, border-color .15s;
 }
-.vc-tile.talking { border-color: var(--ok); box-shadow: 0 0 0 2px color-mix(in srgb, var(--ok) 55%, transparent), 0 0 18px -2px var(--ok); }
-.vc-tile video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.vc-tile video.mirror { transform: scaleX(-1); }
-.vc-name { position: absolute; left: 6px; bottom: 5px; right: 28px; font-size: .7rem; font-weight: 700; text-shadow: 0 1px 3px #000; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.vc-mute { position: absolute; right: 5px; bottom: 4px; color: var(--bad); display: grid; filter: drop-shadow(0 1px 2px #000); }
-.vc-mute svg { width: 15px; height: 15px; }
+.vt.talking { border-color: var(--ok); box-shadow: 0 0 0 2px color-mix(in srgb, var(--ok) 55%, transparent), 0 0 18px -2px var(--ok); }
+.vt video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.vt video.mirror { transform: scaleX(-1); }
+.vt.full { border-radius: 0; background: #000; }
+.vt.full video { object-fit: contain; }
+.vt-name { position: absolute; left: 7px; bottom: 6px; right: 30px; font-size: .72rem; font-weight: 700; text-shadow: 0 1px 3px #000; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+.vt-mute { position: absolute; right: 6px; bottom: 5px; color: var(--bad); display: grid; filter: drop-shadow(0 1px 2px #000); pointer-events: none; }
+.vt-ctl {
+  position: absolute; top: 5px; right: 5px; display: flex; gap: 4px; align-items: center; opacity: 0; transition: opacity .15s; z-index: 2;
+}
+.vt:hover .vt-ctl, .vt:focus-within .vt-ctl, .vt.pinned .vt-ctl { opacity: 1; }
+@media (hover: none) { .vt-ctl { opacity: 1; } }
+.vt-ctl button, .vt-vol {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 28px; height: 28px; padding: 0 6px; border-radius: 8px; cursor: pointer;
+  color: #fff; background: rgba(4, 8, 10, .68); border: 1px solid rgba(255, 255, 255, .18); backdrop-filter: blur(6px);
+}
+.vt-vol input { width: 64px; accent-color: var(--accent); }
+.vt-vol { cursor: default; }
+@media (hover: none) { .vt-vol input { width: 54px; } .vt-ctl button, .vt-vol { min-width: 34px; height: 34px; } }
+
+/* ---- the strip over the 3D map ---- */
+.vd { position: absolute; top: 12px; right: 12px; z-index: 6; display: grid; gap: 8px; justify-items: end; max-width: calc(100% - 24px); pointer-events: none; }
+.vd > * { pointer-events: auto; }
+.vd-join {
+  display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 8px 14px; border-radius: 999px; cursor: pointer; font: inherit; font-size: .8rem; font-weight: 700; color: var(--ink);
+  background: rgba(4, 8, 10, .72); border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent); backdrop-filter: blur(8px);
+}
+.vd-n { background: var(--accent); color: #04080a; border-radius: 99px; padding: 1px 7px; font-size: .7rem; }
+.vd-bar { display: flex; gap: 6px; padding: 5px; border-radius: 999px; background: rgba(4, 8, 10, .72); border: 1px solid var(--line); backdrop-filter: blur(8px); }
+.vd-b {
+  width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; color: var(--dim);
+  background: transparent; border: 1px solid transparent; transition: background .12s, color .12s;
+}
+.vd-b.on { color: var(--ink); background: color-mix(in srgb, var(--ok) 22%, transparent); }
+.vd-b.off { color: #ff9aa8; background: color-mix(in srgb, var(--bad) 18%, transparent); }
+.vd-b.leave:hover { color: var(--bad); }
+.vd-tiles { display: grid; gap: 6px; justify-items: end; }
+.vd[data-size="s"] .vd-tiles .vt-dock { width: 76px; }
+.vd[data-size="m"] .vd-tiles .vt-dock { width: 108px; }
+.vd[data-size="l"] .vd-tiles .vt-dock { width: 150px; }
+.vd-tiles .vt-dock.pinned { width: min(260px, 62vw); }
+.vt-dock { border-radius: 10px; }
+.vt-dock .vt-name { font-size: .64rem; left: 5px; bottom: 4px; }
+.vt-dock .vt-ctl { top: 3px; right: 3px; }
+.vt-dock:not(.pinned) .vt-ctl > :not(:first-child), .vt-panel:not(.pinned) .vt-ctl > .vt-vol { display: none; }
+.vt { cursor: pointer; }
+.vt-ctl button:first-child { order: 9; }
+@media (max-width: 640px) {
+  .vd { top: 8px; right: 8px; }
+  .vd-b { width: 36px; height: 36px; }
+  .vd[data-size="m"] .vd-tiles .vt-dock { width: 84px; }
+  .vd[data-size="l"] .vd-tiles .vt-dock { width: 120px; }
+  .vd[data-size="s"] .vd-tiles .vt-dock { width: 62px; }
+}
