@@ -7,10 +7,11 @@ import { Scoreboard } from "./Scoreboard";
 import { Avatar, MissionIcon, TimerBar, useCountdown } from "./ui";
 import { Bazaar } from "./missions/Bazaar";
 import { Mystery } from "./missions/Mystery";
-import { Relic } from "./missions/Relic";
+import { Relic, preloadRelicScene } from "./missions/Relic";
 import { VoicePanel } from "./voice/VoicePanel";
 import { VoiceContext } from "./voice/VoiceContext";
 import { useVoice } from "./voice/useVoice";
+import { useVoiceUi } from "./voice/voiceUi";
 import { Cipher } from "./missions/Cipher";
 import { MathSprint } from "./missions/MathSprint";
 import { Reaction } from "./missions/Reaction";
@@ -57,6 +58,10 @@ function useGameSounds(state: StateView) {
 export function GameView({ state, chat, typing = [], status, skew, send, onRtc, onLeave }: GameViewProps) {
   useGameSounds(state);
   const voice = useVoice({ state, send, onRtc });
+  const voiceUi = useVoiceUi();
+  // Rooms with a 3D mission download the scene while everyone is still in the lobby.
+  const has3d = state?.map.missions.some((m) => m.kind === "relic") ?? false;
+  useEffect(() => { if (has3d) preloadRelicScene(); }, [has3d]);
   const [copied, setCopied] = useState(false);
   const copy = () => {
     void navigator.clipboard?.writeText(state.code).then(() => {
@@ -66,7 +71,7 @@ export function GameView({ state, chat, typing = [], status, skew, send, onRtc, 
   };
 
   return (
-    <VoiceContext.Provider value={state.map.voice ? voice : null}>
+    <VoiceContext.Provider value={state.map.voice ? { voice, ui: voiceUi } : null}>
     <div className="rg-root" data-theme={state.map.theme}>
       <Ambient scene={state.map.id} />
       <header className="rg-top">
@@ -93,7 +98,7 @@ export function GameView({ state, chat, typing = [], status, skew, send, onRtc, 
           <Stage state={state} skew={skew} send={send} />
         </section>
         <aside className="rg-side">
-          {state.map.voice && <VoicePanel voice={voice} players={state.players} you={state.you} />}
+          {state.map.voice && <VoicePanel voice={voice} ui={voiceUi} players={state.players} you={state.you} />}
           <Scoreboard players={state.players} you={state.you} phase={state.phase} />
           <Chat messages={chat} you={state.you} send={send} typing={typing} />
         </aside>
