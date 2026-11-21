@@ -49,6 +49,15 @@ export const MYSTERY: MapInfo = {
   ],
 };
 
+export const RELIC_MAP: MapInfo = {
+  id: "cursed-relic", name: "The Cursed Relic", tagline: "Watch it get buried. Then find it before the curse finds you. Voice and camera on.", theme: "crypt", mode: "versus",
+  min_players: 2, max_players: 6, voice: true,
+  missions: [
+    { kind: "relic", title: "Dig Up the Relic", brief: "A cursed object will be shown, then buried. Follow the heat, dig fast, and do not trust the Wail." },
+    { kind: "relic", title: "Second Burial", brief: "A new relic, a new grave." },
+  ],
+};
+
 const P = (name: string, extra: Partial<PlayerView> = {}): PlayerView => ({
   name, ready: false, connected: true, spectator: false, host: false, score: 0, gain: 0, progress: 0, ...extra,
 });
@@ -156,6 +165,7 @@ export const SCENARIOS: Record<string, () => StateView> = {
       options: ["Email it back to the user", "Hash the salted password", "Store it in plain text", "Encrypt it with the user's own key"] },
   }),
   ...mysteryScenarios(),
+  ...relicScenarios(),
 };
 
 function mysteryScenarios(): Record<string, () => StateView> {
@@ -205,5 +215,33 @@ function mysteryScenarios(): Record<string, () => StateView> {
         lesson: "Alibis are testable. Cross-validate testimony.",
       },
     }, { ...role, role: "suspect" }),
+  };
+}
+
+function relicScenarios(): Record<string, () => StateView> {
+  const ZONES = [{ name: "Weeping Grove", x: -17, z: -15 }, { name: "Drowned Chapel", x: 17, z: -14 }, { name: "Bone Orchard", x: -16, z: 17 }, { name: "Old Well", x: 17, z: 17 }];
+  const RELIC = { key: "idol" as const, name: "The Weeping Idol", lore: "A jade idol that cries black water. Every village that kept it lost its wells within a year.", curse: "Whoever holds it hears their own name whispered from the ground." };
+  const ps = () => crew().map((p, i) => ({ ...p, voice: i < 2 ? { on: true, mic: i === 0, cam: false } : undefined }));
+  const ring = (r: number): Record<string, [number, number, number]> => ({ neo: [r, 0, 0], trinity: [-r * 0.5, r * 0.86, 0], morpheus: [-r * 0.5, -r * 0.86, 0] });
+  const play = (phase: "show" | "bury" | "hunt" | "found", ageMs: number, extra: Record<string, unknown> = {}) => ({
+    kind: "relic", phase, relic: RELIC, zones: ZONES, bound: 28, reach: 2.3, phase_at: Date.now() - ageMs,
+    pos: ring(3.2), holes: [], found: [], wail: false, wails: 0, ...(phase !== "show" ? { zone: 1 } : {}), ...extra,
+  }) as unknown as StateView["play"];
+  const st = (phase: "show" | "bury" | "hunt" | "found", ageMs: number, extra: Record<string, unknown>, priv: Record<string, unknown>, deadline = 30000) => () => base(RELIC_MAP, "playing", {
+    players: ps(), mission: 0, deadline: inMs(deadline),
+    brief: { index: 0, total: 2, kind: "relic", title: "Dig Up the Relic", brief: "" },
+    play: play(phase, ageMs, extra), private: priv,
+  });
+  const me = { digs: 6, heat: 0, lying: false, found: false, msg: "" };
+  return {
+    "relic: show": st("show", 1000, {}, me, 7000),
+    "relic: bury": st("bury", 2600, {}, me, 4400),
+    "relic: hunt (cold)": st("hunt", 4000, { pos: { neo: [-4, 6, 0.6], trinity: [8, 3, 2], morpheus: [3, -9, 3] } }, me, 120000),
+    "relic: hunt (burning)": st("hunt", 60000, {
+      pos: { neo: [14, -11, 1.2], trinity: [9, -4, 2], morpheus: [19, -16, 3] },
+      holes: [{ x: 12, z: -9, by: "neo" }, { x: 19, z: -12, by: "trinity" }],
+    }, { digs: 4, heat: 4, lying: false, found: false, msg: "Dirt and bone. Something is very close." }, 90000),
+    "relic: wail": st("hunt", 90000, { wail: true, wails: 1, pos: { neo: [6, 8, 0.2], trinity: [9, 3, 2], morpheus: [-3, -9, 3] } }, { digs: 5, heat: 1, lying: true, found: false, msg: "" }, 60000),
+    "relic: found": st("found", 2000, { found: ["trinity"], spot: [15.5, -12.5], pos: { neo: [11, -8, 1], trinity: [15, -12, 2], morpheus: [20, -15, 3] } }, { ...me, digs: 3, heat: 4 }, 4000),
   };
 }
