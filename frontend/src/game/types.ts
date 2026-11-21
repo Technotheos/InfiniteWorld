@@ -1,7 +1,7 @@
 // Mirrors backend-go/game_protocol.go. Keep the two in sync.
 
 export type Phase = "lobby" | "countdown" | "briefing" | "playing" | "reveal" | "finished";
-export type MissionKind = "reaction" | "math" | "typing" | "cipher" | "talk" | "bazaar" | "mystery";
+export type MissionKind = "reaction" | "math" | "typing" | "cipher" | "talk" | "bazaar" | "mystery" | "relic";
 
 export interface MissionInfo {
   kind: MissionKind;
@@ -17,6 +17,8 @@ export interface MapInfo {
   mode: "versus" | "coop";
   min_players: number;
   max_players: number;
+  /** Mic and camera (WebRTC) are available in this room. */
+  voice?: boolean;
   missions: MissionInfo[];
 }
 
@@ -29,6 +31,14 @@ export interface PlayerView {
   score: number;
   gain: number;
   progress: number;
+  /** Present only while the player is in the room's voice chat. */
+  voice?: VoiceFlags;
+}
+
+export interface VoiceFlags {
+  on: boolean;
+  mic: boolean;
+  cam: boolean;
 }
 
 export interface BriefView {
@@ -197,7 +207,42 @@ export interface MysteryPrivate {
   saw?: number;
 }
 
-export type Play = ReactionPlay | MathPlay | TypingPlay | CipherPlay | TalkPlay | BazaarPlay | MysteryPlay;
+// ---- The Cursed Relic ----
+export type RelicPhase = "show" | "bury" | "hunt" | "found";
+export interface RelicZone {
+  name: string;
+  x: number;
+  z: number;
+}
+export interface RelicPlay {
+  kind: "relic";
+  phase: RelicPhase;
+  relic: { key: "idol" | "lantern" | "mask"; name: string; lore: string; curse: string };
+  zones: RelicZone[];
+  bound: number;
+  reach: number;
+  phase_at: number; // server unix ms
+  /** name -> [x, z, facing] */
+  pos: Record<string, [number, number, number]>;
+  holes: { x: number; z: number; by: string }[];
+  found: string[];
+  wail: boolean;
+  wails: number;
+  /** Index into zones. Absent while the relic is still being shown. */
+  zone?: number;
+  /** The burial spot. Only sent once the hunt is over. */
+  spot?: [number, number];
+}
+export interface RelicPrivate {
+  digs: number;
+  /** 0 cold .. 4 burning. Scrambled while `lying`. */
+  heat: number;
+  lying: boolean;
+  found: boolean;
+  msg: string;
+}
+
+export type Play = ReactionPlay | MathPlay | TypingPlay | CipherPlay | TalkPlay | BazaarPlay | MysteryPlay | RelicPlay;
 
 export interface ReactionPrivate {
   acted: boolean;
@@ -246,13 +291,20 @@ export interface ChatMsg {
 /** The reactions the server accepts. Keep in sync with allowedReactions in game_room.go. */
 export const REACTIONS = ["👍", "😂", "😮", "🔥", "🎉", "👏"] as const;
 
+/** A WebRTC offer or answer relayed by the server from another player in the room. */
+export interface RtcSignal {
+  from: string;
+  kind: "offer" | "answer";
+  sdp: string;
+}
+
 export interface Hello {
   protocol: number;
   you: string;
   chat: ChatMsg[] | null;
 }
 
-export type ClientMsgType = "ready" | "start" | "chat" | "act" | "rematch" | "reauth" | "react" | "typing";
+export type ClientMsgType = "ready" | "start" | "chat" | "act" | "rematch" | "reauth" | "react" | "typing" | "voice" | "rtc";
 export type SendFn = (type: ClientMsgType, payload?: unknown) => void;
 
 export interface MissionProps<P, Q = unknown> {
