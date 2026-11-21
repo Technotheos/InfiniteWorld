@@ -12,6 +12,8 @@ export interface SceneHandle<S> {
 }
 
 export interface Stage {
+  /** Absent on the headless test stage. Scenes that want shadows switch them on here. */
+  renderer?: THREE.WebGLRenderer;
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
   reduced: boolean;
@@ -83,7 +85,7 @@ export function createStage(host: HTMLElement, opts: { fov?: number } = {}): Sta
   raf = requestAnimationFrame(loop);
 
   return {
-    scene, camera, reduced: prefersReducedMotion(),
+    renderer, scene, camera, reduced: prefersReducedMotion(),
     frame: (fn) => { frames.push(fn); },
     dispose: () => {
       cancelAnimationFrame(raf);
