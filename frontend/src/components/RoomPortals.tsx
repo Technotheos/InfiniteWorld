@@ -111,6 +111,19 @@ const MysteryEmblem = () => (
   </svg>
 );
 
+/** Cursed Relic: a buried idol under a waxing moon, with a lantern ring that heats up. */
+const RelicEmblem = () => (
+  <svg viewBox="0 0 100 100" className="pt-emblem" aria-hidden="true">
+    <circle cx="50" cy="50" r="34" fill="none" stroke="currentColor" strokeWidth="0.5" opacity="0.4" className="pt-pulse" />
+    <path d="M10 74q40-12 80 0" fill="none" stroke="currentColor" strokeWidth="1.1" opacity="0.7" />
+    <path d="M30 74q20-8 40 0" fill="none" stroke="currentColor" strokeWidth="0.7" opacity="0.5" />
+    <path d="M50 20c-9 0-14 7-14 14 0 6 3 10 6 12l-3 14h22l-3-14c3-2 6-6 6-12 0-7-5-14-14-14z" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+    <circle cx="44" cy="34" r="2" fill="currentColor" /><circle cx="56" cy="34" r="2" fill="currentColor" />
+    <path d="M45 42q5 3 10 0" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+    <g className="pt-spin" style={{ transformOrigin: '50px 50px' }}><circle cx="50" cy="12" r="2.6" fill="currentColor" /></g>
+  </svg>
+);
+
 export const PORTALS: Portal[] = [
   {
     id: 'arena', code: 'SECTOR 01', name: 'Quick Arena', mode: 'Versus', players: '1–8', slots: 8,
@@ -136,6 +149,11 @@ export const PORTALS: Portal[] = [
     id: 'midnight-mystery', code: 'SECTOR 05', name: 'Midnight Mystery', mode: 'Social deduction', players: '4–6', slots: 6,
     desc: 'A crime in 3D noir. Secret roles, a hidden liar, and testimony to cross-check.',
     accent: '#ff5d73', accent2: '#b8c1ec', Emblem: MysteryEmblem,
+  },
+  {
+    id: 'cursed-relic', code: 'SECTOR 06', name: 'The Cursed Relic', mode: 'Hunt · voice & cam', players: '2–6', slots: 6,
+    desc: 'Watch a cursed object get buried, then hunt it in a haunted 3D graveyard. Talk to your team with mic and camera.',
+    accent: '#6df2b8', accent2: '#9b8cff', Emblem: RelicEmblem,
   },
 ];
 
