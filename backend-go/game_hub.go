@@ -28,6 +28,9 @@ const (
 	maxGameRooms = 200
 	gameMsgRate  = 12.0 // actions per second per connection (typing progress + answers)
 	gameMsgBurst = 24.0
+	gameMaxFrame = 16384 // game sockets only: a WebRTC video offer does not fit in the default 4 KB
+	rtcMsgRate   = 2.0   // signalling messages per second (2 per peer, so 5 peers fit in the burst)
+	rtcMsgBurst  = 12.0
 	codeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" // 32 symbols, no 0/O/1/I confusion
 )
 
@@ -217,12 +220,13 @@ func (c *gameClient) readPump() {
 		c.room.leave(c)
 		c.close()
 	}()
-	c.conn.SetReadLimit(maxMessageSize)
+	c.conn.SetReadLimit(gameMaxFrame)
 	c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	c.conn.SetPongHandler(func(string) error {
 		return c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	})
 	limiter := newBucket(gameMsgRate, gameMsgBurst)
+	rtcLimiter := newBucket(rtcMsgRate, rtcMsgBurst)
 	for {
 		_, raw, err := c.conn.ReadMessage()
 		if err != nil {
@@ -237,6 +241,9 @@ func (c *gameClient) readPump() {
 		var msg ClientMsg
 		if json.Unmarshal(raw, &msg) != nil || msg.Type == "" || len(msg.Type) > 16 {
 			continue
+		}
+		if msg.Type == "rtc" && !rtcLimiter.allow() {
+			continue // signalling flood: drop, never stall the room
 		}
 		// In-band token renewal (see renewSocketAuth). Not passed to the room.
 		if msg.Type == "reauth" {
