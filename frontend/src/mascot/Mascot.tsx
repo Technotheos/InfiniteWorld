@@ -115,7 +115,9 @@ function Wanderer({ char, avoidRight, startX, onCollect, register }: {
   const [pose, setPose] = useState<Pose>("idle");
   const [x, setX] = useState(() => {
     const maxX = Math.max(16, (typeof window === "undefined" ? 800 : window.innerWidth) - W - 8);
-    return Math.min(maxX, startX !== undefined ? Math.max(8, startX) : 24 + ORDER.indexOf(char.id) * 230);
+    const nav = typeof document === "undefined" ? null : document.querySelector('nav[aria-label="Main"]');
+    const lo = 24 + (nav ? Math.max(0, nav.getBoundingClientRect().right) : 0);
+    return Math.min(maxX, startX !== undefined ? Math.max(8, startX) : lo + ORDER.indexOf(char.id) * 230);
   });
   const [dir, setDir] = useState<1 | -1>(1);
   const [dur, setDur] = useState(0);
@@ -130,6 +132,14 @@ function Wanderer({ char, avoidRight, startX, onCollect, register }: {
   const snoreT = useRef(0);
   useEffect(() => () => window.clearInterval(snoreT.current), []);
   const xRef = useRef(x);
+  // The page's left navigation mounts after the slugs do: step clear of it once, right after mount.
+  useEffect(() => {
+    if (startX !== undefined) return; // released from the basket on purpose
+    const nav = document.querySelector('nav[aria-label="Main"]');
+    const lo = nav ? nav.getBoundingClientRect().right + 16 : 0;
+    if (lo && xRef.current < lo) { xRef.current = lo; setX(lo); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const lastAct = useRef(Date.now());
   const pokes = useRef({ n: 0, t: 0 });
   const brain = useRef({ react: (_p: Pose, _t?: string) => {}, poke: () => {} });
@@ -183,7 +193,10 @@ function Wanderer({ char, avoidRight, startX, onCollect, register }: {
     };
     const walk = () => {
       const max = Math.max(60, window.innerWidth - W - avoidRight);
-      const tx = 16 + Math.random() * (max - 16);
+      // Stay out of the left navigation when there is one on screen (the Home page sidebar).
+      const nav = document.querySelector('nav[aria-label="Main"]');
+      const lo = 16 + (nav ? Math.max(0, nav.getBoundingClientRect().right) : 0);
+      const tx = lo + Math.random() * Math.max(0, max - lo);
       const secs = Math.abs(tx - xRef.current) / 80;
       setDir(tx > xRef.current ? 1 : -1); setDur(secs); xRef.current = tx; setX(tx); to("walk");
       later(() => { setDur(0); to("idle"); think(); }, secs * 1000 + 60);
