@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Logo } from '../components/Logo';
 import { motion, useReducedMotion, type MotionProps } from 'framer-motion';
 import {
-  ArrowUpRight, Brain, Bug, Compass, Gamepad2, Home as HomeIcon, LogOut, MessageSquare,
-  Network, Settings as SettingsIcon, ShieldAlert, TrendingUp, Zap, type LucideIcon,
+  ArrowUpRight, Brain, Gamepad2, Home as HomeIcon, LogOut,
+  Settings as SettingsIcon, ShieldAlert,
 } from 'lucide-react';
 import '../styles/celestial.css';
 import { Starfield, type StarfieldHandle } from '../components/Starfield';
@@ -11,8 +11,8 @@ import { Sigil } from '../components/Sigil';
 import { Avatar } from '../components/Avatar';
 import { usePrefs } from '../hooks/usePrefs';
 import type { EngineStatus } from '../hooks/useEngineStatus';
-import { MAP_ORDER, MISSIONS, NODE_POS, loadProgress, rankFor, totalXp } from '../game/chain-lab';
-import { SlugDock } from '../mascot';
+import { MISSIONS, loadProgress, rankFor, totalXp } from '../game/chain-lab';
+import { SlugToggles, useDockedToggles } from '../mascot';
 import { RoomPortals } from '../components/RoomPortals';
 import { FriendsPanel } from '../social/FriendsPanel';
 import { Ambient, sfx } from '../sound';
@@ -31,8 +31,6 @@ interface HomeProps {
   onPlayMap: (mapId: string, isPrivate: boolean) => Promise<string>;
   /** Join a game room by its code. */
   onJoinCode: (code: string) => void;
-  /** Join a live chat room by id. */
-  onSelectRoom: (roomId: string) => void;
   onLogout: () => void;
   /** Open the profile & settings page. */
   onOpenSettings: () => void;
@@ -55,96 +53,74 @@ const FOCUS =
 /*  Content                                                                   */
 /* -------------------------------------------------------------------------- */
 
-// Room ids must match the server's ^[A-Za-z0-9_-]{1,64}$ rule.
-// Each room has its own icon + accent colour so the list reads at a glance.
-const chatRooms: { id: string; title: string; tag: string; desc: string; icon: LucideIcon; accent: string }[] = [
-  {
-    id: 'zeroday-websec',
-    title: 'Zero-Day & WebSec',
-    tag: 'Security',
-    desc: 'Vulnerabilities, write-ups and patches. Talk about the lab here.',
-    icon: Bug,
-    accent: '#ff5d4a',
-  },
-  {
-    id: 'ai-deep-dive',
-    title: 'Deep AI',
-    tag: 'Deep learning',
-    desc: 'Algorithms, the math behind them, and papers. Talk about the AI lab here.',
-    icon: Brain,
-    accent: '#22d3ee',
-  },
-  {
-    id: 'nasdaq-scalping',
-    title: 'Nasdaq 1-Min Scalps',
-    tag: 'Markets',
-    desc: 'Tape reading and fast entries.',
-    icon: TrendingUp,
-    accent: '#e9b872',
-  },
-  {
-    id: 'crypto-alpha',
-    title: 'Crypto Alpha & Flows',
-    tag: 'On-chain',
-    desc: 'On-chain flows and setups.',
-    icon: Zap,
-    accent: '#9b8cff',
-  },
-  {
-    id: 'distributed-systems',
-    title: 'Distributed Systems',
-    tag: 'Systems',
-    desc: 'Consensus, queues and failure modes.',
-    icon: Network,
-    accent: '#5eead4',
-  },
-];
-
 /* -------------------------------------------------------------------------- */
 /*  Small pieces                                                              */
 /* -------------------------------------------------------------------------- */
 
-/** A tiny preview of the lab's sector map: lit nodes are missions you have charted. */
-function MiniConstellation({ done }: { done: Record<string, number> }) {
+/**
+ * A tiny blockchain under attack, for the Chain Security Lab card:
+ * a hostile packet races down the chain, one block gets breached (red, glitching),
+ * its hash scrambles, then the patch lands and it turns back to gold. Loops forever.
+ * Pure SVG + CSS keyframes (see celestial.css); `iw-anim` makes it respect reduced motion / calm mode.
+ */
+function MiniChainHack() {
+  const blocks = [8, 38, 68]; // x of each block (viewBox 100 wide)
+  const hexes = ['0x9f3a', '0xc41e', '0x7b02', '0xe5d8', '0x31af', '0xa07c'];
   return (
     <svg viewBox="0 0 100 70" className="w-full h-44" aria-hidden="true">
-      <circle cx="50" cy="35" r="30" fill="none" stroke="rgba(238,233,220,0.08)" />
-      <circle cx="50" cy="35" r="20" fill="none" stroke="rgba(238,233,220,0.06)" />
-      {MAP_ORDER.slice(0, -1).map((id, i) => {
-        const a = NODE_POS[id];
-        const b = NODE_POS[MAP_ORDER[i + 1]];
-        const lit = id in done;
+      {/* falling hex data in the background */}
+      {hexes.map((h, i) => (
+        <text key={h} x={6 + i * 16} y="0" fontSize="3.4" fontFamily="monospace" fill="rgba(233,184,114,0.35)"
+          className="iw-anim iw-hexfall" style={{ animationDelay: `${-i * 1.1}s`, animationDuration: `${5 + (i % 3)}s` }}>
+          {h}
+        </text>
+      ))}
+
+      {/* links between blocks */}
+      {blocks.slice(0, -1).map((x, i) => (
+        <g key={x}>
+          <line x1={x + 24} y1="35" x2={blocks[i + 1]} y2="35" stroke="rgba(233,184,114,0.55)" strokeWidth="1" />
+          <line x1={x + 24} y1="35" x2={blocks[i + 1]} y2="35" stroke="#e9b872" strokeWidth="1"
+            strokeDasharray="2 4" className="iw-anim iw-flow" />
+        </g>
+      ))}
+
+      {/* blocks */}
+      {blocks.map((x, i) => {
+        const hit = i === 1; // the middle block is the one that gets breached
         return (
-          <line
-            key={id}
-            x1={a.x}
-            y1={a.y * 0.7}
-            x2={b.x}
-            y2={b.y * 0.7}
-            stroke={lit ? 'rgba(233,184,114,0.85)' : 'rgba(238,233,220,0.25)'}
-            strokeDasharray={lit ? undefined : '1.5 2'}
-            strokeWidth="0.6"
-          />
-        );
-      })}
-      {MAP_ORDER.map((id) => {
-        const p = NODE_POS[id];
-        const isMission = MISSIONS.some((m) => m.id === id);
-        const lit = id in done;
-        return (
-          <g key={id}>
-            {isMission && !lit && (
-              <circle cx={p.x} cy={p.y * 0.7} r="4.5" fill="none" stroke="rgba(155,140,255,0.5)" className="iw-ping" style={{ transformBox: 'fill-box', transformOrigin: 'center' }} />
+          <g key={x} className={hit ? 'iw-anim iw-breach' : ''} style={hit ? { transformBox: 'fill-box', transformOrigin: 'center' } : undefined}>
+            <rect x={x} y="21" width="24" height="28" rx="3" fill="rgba(13,11,22,0.9)"
+              stroke="rgba(233,184,114,0.7)" strokeWidth="0.8" className={hit ? 'iw-anim iw-breach-stroke' : ''} />
+            <text x={x + 3} y="28" fontSize="3" fontFamily="monospace" fill="rgba(238,233,220,0.55)">#{4821 + i}</text>
+            <rect x={x + 3} y="31" width="18" height="1.6" rx="0.8" fill="rgba(233,184,114,0.5)" />
+            <rect x={x + 3} y="35" width="13" height="1.6" rx="0.8" fill="rgba(155,140,255,0.5)" />
+            <rect x={x + 3} y="39" width="16" height="1.6" rx="0.8" fill="rgba(233,184,114,0.35)" />
+            {hit ? (
+              <>
+                <text x={x + 3} y="46" fontSize="3" fontFamily="monospace" fill="#ff5d4a" className="iw-anim iw-hash-bad">0xDEAD</text>
+                <text x={x + 3} y="46" fontSize="3" fontFamily="monospace" fill="#5eead4" className="iw-anim iw-hash-good">PATCHED</text>
+              </>
+            ) : (
+              <text x={x + 3} y="46" fontSize="3" fontFamily="monospace" fill="rgba(94,234,212,0.7)">0x{(0x7a1c + i * 0x2f3).toString(16)}</text>
             )}
-            <circle
-              cx={p.x}
-              cy={p.y * 0.7}
-              r="2.6"
-              fill={lit ? '#e9b872' : isMission ? '#9b8cff' : 'rgba(238,233,220,0.25)'}
-            />
           </g>
         );
       })}
+
+      {/* the hostile packet travelling the chain */}
+      <g className="iw-anim iw-packet">
+        <circle r="3.6" fill="rgba(255,93,74,0.25)" />
+        <circle r="1.7" fill="#ff5d4a" />
+      </g>
+
+      {/* shield flash when the patch lands */}
+      <circle cx="50" cy="35" r="14" fill="none" stroke="#5eead4" strokeWidth="0.8"
+        className="iw-anim iw-shield" style={{ transformBox: 'fill-box', transformOrigin: 'center' }} />
+
+      {/* status line */}
+      <text x="8" y="62" fontSize="3.2" fontFamily="monospace" fill="#ff5d4a" className="iw-anim iw-status-bad">&gt; exploit detected…</text>
+      <text x="8" y="62" fontSize="3.2" fontFamily="monospace" fill="#5eead4" className="iw-anim iw-status-good">&gt; patch applied. chain secure.</text>
     </svg>
   );
 }
@@ -190,7 +166,6 @@ export default function Home({
   onOpenAILab,
   onPlayMap,
   onJoinCode,
-  onSelectRoom,
   onLogout,
   onOpenSettings,
   avatarSrc,
@@ -198,7 +173,6 @@ export default function Home({
 }: HomeProps) {
   const displayName = username || 'Explorer';
   const starfield = useRef<StarfieldHandle | null>(null);
-  const chatRef = useRef<HTMLElement | null>(null);
   const arcadeRef = useRef<HTMLElement | null>(null);
   const [warping, setWarping] = useState(false);
   const [done] = useState(loadProgress);
@@ -214,6 +188,8 @@ export default function Home({
     mq.addEventListener('change', on);
     return () => mq.removeEventListener('change', on);
   }, []);
+
+  useDockedToggles(isDesktop); // on laptops the icons live in the sidebar; elsewhere they float bottom-left
 
   const xp = totalXp(done);
   const rank = rankFor(xp);
@@ -239,11 +215,6 @@ export default function Home({
     },
     [warping, prefs.warp],
   );
-
-  const surprise = () => {
-    const room = chatRooms[Math.floor(Math.random() * chatRooms.length)];
-    void enter(() => onSelectRoom(room.id));
-  };
 
   const rise = (i: number): MotionProps =>
     reduce ? {} : { initial: { opacity: 0, y: 16 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.5, delay: i * 0.08 } };
@@ -299,18 +270,12 @@ export default function Home({
             <button onClick={() => arcadeRef.current?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })} className={`${navBtn} text-[#a49fb0] hover:text-[#eee9dc] hover:bg-white/5`}>
               <Gamepad2 size={18} /> Arcade
             </button>
-            <button
-              onClick={() => chatRef.current?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })}
-              className={`${navBtn} text-[#a49fb0] hover:text-[#eee9dc] hover:bg-white/5`}
-            >
-              <MessageSquare size={18} /> Chat rooms
-            </button>
           </div>
         </div>
 
         <div className="space-y-3">
-          {/* Slug basket: minimal, in the sidebar, never over the rooms */}
-          {isDesktop && <SlugDock layout="rail" />}
+          {/* Fire / electricity / nature slugs: a small row just above the profile, never on top of it */}
+          {isDesktop && <SlugToggles className="justify-center pb-1" />}
         <div className="pt-4 border-t border-white/10 flex items-center justify-between gap-1">
           <button
             onClick={onOpenSettings}
@@ -420,13 +385,6 @@ export default function Home({
             <FriendsPanel />
           </motion.div>
 
-          {/* Phones: the slug basket is a slim glass strip near the top */}
-          {!isDesktop && (
-            <motion.section {...rise(1.2)} aria-label="Slug Squad">
-              <SlugDock layout="inline" />
-            </motion.section>
-          )}
-
           {/* Featured room: Chain Security Lab */}
           <motion.section {...rise(2)} aria-label="Chain Security Lab">
             <div className="relative overflow-hidden rounded-3xl border border-[#e9b872]/30 bg-[#0d0b16]/75 backdrop-blur-md p-6 sm:p-8 shadow-[0_0_60px_rgba(233,184,114,0.08)]">
@@ -470,7 +428,7 @@ export default function Home({
                   </div>
                 </div>
                 <div className="lg:col-span-2">
-                  <MiniConstellation done={done} />
+                  <MiniChainHack />
                 </div>
               </div>
             </div>
@@ -517,66 +475,6 @@ export default function Home({
               <p className="text-sm text-[#a49fb0] mt-1">Pick a sector and you are in. Finish the missions and see who played best.</p>
             </div>
             <RoomPortals onPlayMap={onPlayMap} onJoinCode={onJoinCode} disabled={warping} warp={enter} />
-          </motion.section>
-
-          {/* Chat rooms */}
-          <motion.section {...rise(5)} aria-label="Chat rooms" ref={chatRef} className="space-y-4 scroll-mt-8">
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <div className="font-mono text-[11px] tracking-[0.25em] text-[#5eead4]">// OPEN CHANNELS</div>
-                <h3 className="iw-display text-3xl font-light mt-1">Chat rooms</h3>
-                <p className="text-sm text-[#a49fb0] mt-1">Live conversation, one topic per room.</p>
-              </div>
-              <button
-                onClick={surprise}
-                disabled={warping}
-                className={`px-4 py-2.5 rounded-xl border border-white/10 text-sm text-[#c9c4d2] hover:text-[#eee9dc] hover:bg-white/5 flex items-center gap-2 transition ${FOCUS}`}
-              >
-                <Compass size={15} /> Surprise me
-              </button>
-            </div>
-            <ul className="space-y-3">
-              {chatRooms.map((r) => {
-                const Icon = r.icon;
-                return (
-                  <li
-                    key={r.id}
-                    className="relative overflow-hidden flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-[#0d0b16]/75 backdrop-blur-md pl-5 pr-3 sm:pl-6 sm:pr-5 py-3.5 sm:py-4 hover:border-white/25 transition-colors"
-                  >
-                    <span aria-hidden="true" className="absolute inset-y-0 left-0 w-1" style={{ background: r.accent }} />
-                    <div className="flex items-center gap-4 min-w-0">
-                      <span
-                        aria-hidden="true"
-                        className="grid h-11 w-11 sm:h-12 sm:w-12 shrink-0 place-items-center rounded-2xl border"
-                        style={{ color: r.accent, borderColor: `${r.accent}55`, background: `${r.accent}14`, boxShadow: `0 0 26px ${r.accent}33` }}
-                      >
-                        <Icon size={22} />
-                      </span>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold text-[#eee9dc] truncate">{r.title}</span>
-                          <span
-                            className="hidden sm:inline shrink-0 rounded-full border px-2 py-0.5 text-[10px]"
-                            style={{ color: r.accent, borderColor: `${r.accent}55` }}
-                          >
-                            {r.tag}
-                          </span>
-                        </div>
-                        <div className="text-xs text-[#a49fb0] truncate">{r.desc}</div>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => void enter(() => onSelectRoom(r.id))}
-                      disabled={warping}
-                      className={`shrink-0 px-4 sm:px-5 py-2.5 rounded-xl text-[#0b0a10] font-bold text-sm hover:brightness-110 disabled:opacity-60 transition ${FOCUS}`}
-                      style={{ background: r.accent }}
-                    >
-                      Join
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
           </motion.section>
         </div>
       </main>
