@@ -8,8 +8,14 @@
   border:1px solid var(--bc,rgba(255,170,60,.5));background:rgba(20,12,8,.9);color:var(--bt,#ffd9a0);font-size:13px;line-height:1;
   cursor:pointer;opacity:0;transition:opacity .2s}
 .em-wrap:hover .em-hide,.em-hide:focus-visible{opacity:1}
-.em-show{position:fixed;left:12px;bottom:12px;z-index:40;width:38px;height:38px;border-radius:50%;cursor:pointer;
-  border:1px solid rgba(255,170,60,.6);background:rgba(20,12,8,.9);font-size:18px;box-shadow:0 0 14px rgba(255,130,0,.5)}
+.em-toggles{display:flex;align-items:center;gap:10px}
+.em-toggles-float{position:fixed;left:12px;bottom:12px;z-index:40}
+.em-show{width:38px;height:38px;border-radius:50%;cursor:pointer;padding:0;line-height:1;display:grid;place-items:center;
+  border:1px solid var(--bc,rgba(255,170,60,.6));background:rgba(20,12,8,.9);font-size:18px;
+  box-shadow:0 0 14px var(--ga,rgba(255,130,0,.5));opacity:.7;transition:transform .15s,opacity .15s,box-shadow .15s}
+.em-show:hover,.em-show:focus-visible{opacity:1;transform:translateY(-2px)}
+.em-show:focus-visible{outline:2px solid #ffd21f;outline-offset:3px}
+.em-show.em-on{opacity:1;box-shadow:0 0 20px var(--ga),inset 0 0 10px var(--ga)}
 .em-bubble{position:absolute;bottom:100%;margin-bottom:4px;left:50%;transform:translateX(-50%);width:max-content;
   max-width:220px;padding:8px 12px;border-radius:14px;font:500 13px/1.35 Manrope,system-ui,sans-serif;color:var(--bt,#ffe9c4);
   background:rgba(20,12,8,.92);border:1px solid var(--bc,rgba(255,170,60,.55));box-shadow:0 0 18px var(--ga,rgba(255,120,0,.3));
