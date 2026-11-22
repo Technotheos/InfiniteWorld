@@ -5,6 +5,7 @@ import {
 import "./mascot.css";
 import type { Pose } from "./pose";
 import { slugSound, type SlugSound } from "../sound";
+import { SlugToggles } from "./SlugToggles";
 
 // Which noise goes with which pose. Poses not listed here stay quiet (walking, idling...).
 const POSE_SOUND: Partial<Record<Pose, SlugSound>> = {
@@ -37,10 +38,14 @@ interface Api {
   collect: (id: CharId) => void;
   releaseAll: () => void;
   collectAll: () => void;
+  /** True while a page shows the slug icons itself, so the floating ones hide. */
+  docked: boolean;
+  setDocked: (d: boolean) => void;
 }
 const noop: Api = {
   say() {}, react() {}, hidden: false, setHidden() {}, lines: CHARS.embo.lines,
   out: [], release() {}, collect() {}, releaseAll() {}, collectAll() {},
+  docked: false, setDocked() {},
 };
 const Ctx = createContext<Api>(noop);
 export const useMascot = () => useContext(Ctx);
@@ -61,6 +66,7 @@ function loadOut(): CharId[] {
 
 export function MascotProvider({ children, avoidRight = 170 }: { children: ReactNode; avoidRight?: number }) {
   const [out, setOut] = useState<CharId[]>(loadOut);
+  const [docked, setDocked] = useState(false);
   const spawn = useRef<Partial<Record<CharId, number>>>({});
   const brains = useRef<Partial<Record<CharId, Brain>>>({});
 
@@ -87,20 +93,17 @@ export function MascotProvider({ children, avoidRight = 170 }: { children: React
     hidden: out.length === 0,
     setHidden: (h) => setOut((o) => (h ? [] : o.length ? o : ["embo"])),
     lines: CHARS[lead ?? "embo"].lines,
-    out, release, collect, releaseAll, collectAll,
-  }), [out, lead, release, collect, releaseAll, collectAll]);
+    out, release, collect, releaseAll, collectAll, docked, setDocked,
+  }), [out, lead, release, collect, releaseAll, collectAll, docked]);
 
   return (
     <Ctx.Provider value={api}>
       {children}
-      {out.length === 0 ? (
-        <button type="button" className="em-show" onClick={() => release("embo")} aria-label="Let a slug out" title="Let a slug out">🔥</button>
-      ) : (
-        out.map((id) => (
-          <Wanderer key={id} char={CHARS[id]} avoidRight={avoidRight} startX={spawn.current[id]}
-            onCollect={collect} register={register} />
-        ))
-      )}
+      {!docked && <SlugToggles className="em-toggles-float" />}
+      {out.map((id) => (
+        <Wanderer key={id} char={CHARS[id]} avoidRight={avoidRight} startX={spawn.current[id]}
+          onCollect={collect} register={register} />
+      ))}
     </Ctx.Provider>
   );
 }
