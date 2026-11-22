@@ -208,7 +208,6 @@ function AppInner() {
           setGameCode(code);
           setPlayMode('room');
         }}
-        onSelectRoom={(id) => setSelectedRoom(id)}
         onLogout={handleLogout}
         onOpenSettings={() => setSettingsOpen(true)}
         avatarSrc={avatarUrl(username, avatarVersion)}
