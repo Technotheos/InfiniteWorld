@@ -1,0 +1,21 @@
+{
+  "id": "trace-lab",
+  "name": "Trace Lab Desk Line",
+  "tagline": "A voice, camera and chat line for working forensic cases together.",
+  "theme": "crypt",
+  "mode": "coop",
+  "voice": true,
+  "min_players": 1,
+  "max_players": 6,
+  "missions": [
+    {
+      "kind": "talk",
+      "title": "Desk line",
+      "brief": "Talk through the evidence together.",
+      "duration_ms": 300000,
+      "prompts": [
+        "Compare what each of you has pinned so far and agree on the order of the attack."
+      ]
+    }
+  ]
+}
