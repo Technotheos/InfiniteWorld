@@ -36,3 +36,50 @@
 .iw-calm .iw-spin-slow,
 .iw-calm .iw-ping,
 .iw-calm .animate-pulse { animation: none !important; }
+
+/* ---- Chain Security Lab card: blockchain under attack (Home.tsx, MiniChainHack) ----
+   One 8s loop: packet races in (0-35%), middle block is breached (35-60%), patch lands (60-85%). */
+@keyframes iw-hexfall { from { transform: translateY(-4px); opacity: 0; } 15% { opacity: 1; } to { transform: translateY(76px); opacity: 0; } }
+@keyframes iw-flow    { to { stroke-dashoffset: -12; } }
+@keyframes iw-packet  {
+  0%   { transform: translate(-4px, 35px); opacity: 0; }
+  4%   { opacity: 1; }
+  34%  { transform: translate(38px, 35px); opacity: 1; }
+  38%  { transform: translate(50px, 35px); opacity: 0; }
+  100% { transform: translate(50px, 35px); opacity: 0; }
+}
+@keyframes iw-breach {
+  0%, 34% { transform: none; }
+  36% { transform: translate(-1.2px, 0.6px); } 38% { transform: translate(1.4px, -0.8px); }
+  40% { transform: translate(-1px, 0); } 42% { transform: translate(1px, 0.5px); }
+  44%, 100% { transform: none; }
+}
+@keyframes iw-breach-stroke {
+  0%, 34% { stroke: rgba(233,184,114,0.7); }
+  38%, 58% { stroke: #ff5d4a; }
+  64%, 100% { stroke: #5eead4; }
+}
+@keyframes iw-hash-bad  { 0%, 36% { opacity: 0; } 38%, 58% { opacity: 1; } 60%, 100% { opacity: 0; } }
+@keyframes iw-hash-good { 0%, 60% { opacity: 0; } 64%, 92% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes iw-shield {
+  0%, 60% { opacity: 0; transform: scale(0.4); }
+  66% { opacity: 0.9; transform: scale(1); }
+  86%, 100% { opacity: 0; transform: scale(1.5); }
+}
+.iw-hexfall { animation: iw-hexfall 6s linear infinite; }
+.iw-flow    { animation: iw-flow 1s linear infinite; }
+.iw-packet  { animation: iw-packet 8s ease-in-out infinite; }
+.iw-breach  { animation: iw-breach 8s linear infinite; }
+.iw-breach-stroke { animation: iw-breach-stroke 8s linear infinite; }
+.iw-hash-bad  { animation: iw-hash-bad 8s linear infinite; }
+.iw-hash-good { animation: iw-hash-good 8s linear infinite; }
+.iw-shield  { animation: iw-shield 8s ease-out infinite; }
+.iw-status-bad  { animation: iw-hash-bad 8s linear infinite; }
+.iw-status-good { animation: iw-hash-good 8s linear infinite; }
+/* reduced motion / calm mode: freeze on the calm, patched state */
+@media (prefers-reduced-motion: reduce) {
+  .iw-hexfall, .iw-flow, .iw-packet, .iw-breach, .iw-breach-stroke, .iw-hash-bad, .iw-shield, .iw-status-bad { opacity: 0; }
+  .iw-hash-good, .iw-status-good { animation: none; opacity: 1; }
+}
+.iw-calm .iw-hexfall, .iw-calm .iw-packet, .iw-calm .iw-breach, .iw-calm .iw-hash-bad, .iw-calm .iw-shield, .iw-calm .iw-status-bad { animation: none !important; opacity: 0; }
+.iw-calm .iw-hash-good, .iw-calm .iw-status-good { animation: none !important; opacity: 1; }
