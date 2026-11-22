@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Logo } from '../components/Logo';
 import { motion, useReducedMotion, type MotionProps } from 'framer-motion';
 import {
-  ArrowUpRight, Brain, Gamepad2, Home as HomeIcon, LogOut,
+  ArrowUpRight, Brain, Fingerprint, Gamepad2, Home as HomeIcon, LogOut,
   Settings as SettingsIcon, ShieldAlert,
 } from 'lucide-react';
 import '../styles/celestial.css';
@@ -12,6 +12,7 @@ import { Avatar } from '../components/Avatar';
 import { usePrefs } from '../hooks/usePrefs';
 import type { EngineStatus } from '../hooks/useEngineStatus';
 import { MISSIONS, loadProgress, rankFor, totalXp } from '../game/chain-lab';
+import { CASES, SectorGrid, loadProgress as loadTrace } from '../trace-lab';
 import { SlugToggles, useDockedToggles } from '../mascot';
 import { RoomPortals } from '../components/RoomPortals';
 import { FriendsPanel } from '../social/FriendsPanel';
@@ -27,6 +28,8 @@ interface HomeProps {
   onOpenLab: () => void;
   /** Open the Deep AI Lab room. */
   onOpenAILab: () => void;
+  /** Open the Trace Lab (digital forensics). */
+  onOpenTrace: () => void;
   /** Enter a game room straight from its card (quick play, or a new private room). */
   onPlayMap: (mapId: string, isPrivate: boolean) => Promise<string>;
   /** Join a game room by its code. */
@@ -164,6 +167,7 @@ export default function Home({
   username,
   onOpenLab,
   onOpenAILab,
+  onOpenTrace,
   onPlayMap,
   onJoinCode,
   onLogout,
@@ -176,6 +180,9 @@ export default function Home({
   const arcadeRef = useRef<HTMLElement | null>(null);
   const [warping, setWarping] = useState(false);
   const [done] = useState(loadProgress);
+  const [trace] = useState(loadTrace);
+  const traceClosed = CASES.filter((c) => c.id in trace).length;
+  const traceNext = CASES.find((c) => !(c.id in trace));
   const reduce = useReducedMotion();
   const [prefs] = usePrefs();
   const status = STATUS_STYLES[engineStatus];
@@ -266,6 +273,9 @@ export default function Home({
             </button>
             <button onClick={() => void enter(onOpenAILab)} disabled={warping} className={`${navBtn} text-[#a49fb0] hover:text-cyan-300 hover:bg-cyan-400/5`}>
               <Brain size={18} /> Deep AI Lab
+            </button>
+            <button onClick={() => void enter(onOpenTrace)} disabled={warping} className={`${navBtn} text-[#a49fb0] hover:text-[#ff8a93] hover:bg-red-400/5`}>
+              <Fingerprint size={18} /> Trace Lab
             </button>
             <button onClick={() => arcadeRef.current?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })} className={`${navBtn} text-[#a49fb0] hover:text-[#eee9dc] hover:bg-white/5`}>
               <Gamepad2 size={18} /> Arcade
@@ -462,6 +472,39 @@ export default function Home({
                 </div>
                 <div className="lg:col-span-2">
                   <MiniNeuralNet />
+                </div>
+              </div>
+            </div>
+          </motion.section>
+
+          {/* Featured room: Trace Lab */}
+          <motion.section {...rise(3.5)} aria-label="Trace Lab">
+            <div className="relative overflow-hidden rounded-3xl border border-red-500/30 bg-[#070a0d]/85 backdrop-blur-md p-6 sm:p-8 shadow-[0_0_60px_rgba(255,59,74,0.10)]">
+              <div className="absolute -left-16 -top-16 h-64 w-64 rounded-full bg-amber-400/10 blur-[90px] pointer-events-none" />
+              <div className="relative grid lg:grid-cols-5 gap-6 items-center">
+                <div className="lg:col-span-3">
+                  <div className="flex flex-wrap gap-2 text-[11px] text-[#c9c4d2]">
+                    <span className="px-2.5 py-1 rounded-full border border-red-400/40 text-red-300">Digital forensics</span>
+                    <span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10">7 cases</span>
+                    <span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10">Voice &amp; cam</span>
+                  </div>
+                  <h3 className="mt-3 text-4xl sm:text-5xl font-light" style={{ fontFamily: "'Special Elite', 'Courier New', monospace" }}>Trace Lab</h3>
+                  <p className="text-sm text-[#c9c4d2] leading-relaxed mt-3 max-w-xl">
+                    The breach already happened. Work real evidence (disks, packets, RAM, logs, cloud audits, blockchains), prove every answer, and watch what the attacker really did.
+                  </p>
+                  <div className="mt-6 flex flex-wrap items-center gap-4">
+                    <button
+                      onClick={() => void enter(onOpenTrace)}
+                      disabled={warping}
+                      className={`px-6 py-3 rounded-xl bg-gradient-to-r from-amber-300 to-orange-400 text-[#1b1006] font-bold text-sm hover:brightness-110 disabled:opacity-60 transition flex items-center gap-2 ${FOCUS}`}
+                    >
+                      {traceClosed === CASES.length ? 'Replay cases' : traceClosed ? 'Continue investigating' : 'Open a case'} <ArrowUpRight size={16} />
+                    </button>
+                    <span className="text-xs text-[#a49fb0]">{traceNext ? `Next case: ${traceNext.title}` : 'Every case closed'}</span>
+                  </div>
+                </div>
+                <div className="lg:col-span-2">
+                  <SectorGrid cols={24} rows={9} hidden={[30, 77, 119, 158]} running loop reduce={Boolean(reduce) || !prefs.ambient} className="w-full h-44" />
                 </div>
               </div>
             </div>
