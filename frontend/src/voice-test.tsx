@@ -13,6 +13,9 @@ function Harness() {
   const subs = useRef<Record<string, Set<(s: RtcSignal) => void>>>({});
   const sdpSizes = useRef<number[]>([]);
   (window as unknown as { __sdp: number[] }).__sdp = sdpSizes.current;
+  // test hooks: read what the "server" thinks, and make it forget someone (a phone that reconnected)
+  (window as unknown as Record<string, unknown>).__flags = flags;
+  (window as unknown as Record<string, unknown>).__dropVoice = (n: string) => setFlags((f) => ({ ...f, [n]: { on: false, mic: false, cam: false } }));
 
   const players: PlayerView[] = NAMES.map((n) => ({ name: n, ready: false, connected: true, spectator: false, host: false, score: 0, gain: 0, progress: 0, voice: flags[n]?.on ? flags[n] : undefined }));
   const stateFor = (you: string): StateView => ({ code: "T", map: RELIC_MAP, phase: "lobby", you, spectating: false, players, mission: -1, deadline: 0, now: Date.now() });
