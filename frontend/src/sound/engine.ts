@@ -330,6 +330,12 @@ const SCENES: Record<string, Scene> = {
     pad: { freqs: [98, 147, 196], type: 'sine', lp: 700, gain: 0.04, sway: 0.05 },
     notes: { pitches: [440, 660, 880, 1320], wave: 'triangle', dur: 0.3, gain: 0.03, every: [1.5, 4], burst: [1, 3] },
   },
+  // Trace Lab: CRT hum, rain on the window, the odd keystroke
+  'trace-lab': {
+    pad: { freqs: [50, 100, 150.5], type: 'sine', lp: 320, gain: 0.04, sway: 0.03 },
+    air: { type: 'highpass', freq: 3200, q: 0.3, gain: 0.016, sway: 0.2 },
+    notes: { pitches: [1800, 2100, 2600, 3100], wave: 'square', dur: 0.02, gain: 0.01, every: [2.5, 7], burst: [2, 6] },
+  },
   'ai-lab': {
     pad: { freqs: [130.8, 196, 293.7], type: 'sine', lp: 1000, gain: 0.04, sway: 0.1 },
     air: { type: 'lowpass', freq: 800, q: 0.5, gain: 0.012, sway: 0.2 },
