@@ -126,3 +126,11 @@ can poke.
   `LESSONS` list in `src/ai-lab/AILab.tsx`. Attention, BPE tokenization,
   diffusion and PPO are planned.
 - **Discussion.** The room links to the `ai-deep-dive` chat room.
+
+## Trace Lab (digital forensics)
+
+Seven breach cases worked from raw evidence: disk, network, memory, Windows/AD, cloud, blockchain and a finale.
+Code lives in `frontend/src/trace-lab/` (cases are plain data in `cases/`; run `npx tsx` on a validator that
+walks every case if you add or edit evidence). Progress is stored in `localStorage` (`iw.trace.*`).
+The **Desk line** button opens a private `trace-lab` room (`backend-go/maps/trace-lab.json`, voice enabled)
+and reuses the Cursed Relic mic, camera and chat stack. `npm run dev` then open `/preview-trace.html` to see the lab alone.
