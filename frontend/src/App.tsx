@@ -8,6 +8,7 @@ import { useWebSocket } from './hooks/useWebSocket';
 import { useEngineStatus } from './hooks/useEngineStatus';
 import { ArrowLeft, Send } from 'lucide-react';
 import { AILab } from './ai-lab';
+import { TraceLab } from './trace-lab';
 import Settings from './pages/Settings';
 import Admin from './pages/Admin';
 import { Logo } from './components/Logo';
@@ -22,6 +23,9 @@ const AI_CHAT_ROOM = 'ai-deep-dive';
 
 // The live chat room that goes with the Chain Security Lab.
 const LAB_CHAT_ROOM = 'zeroday-websec';
+
+// The live chat room that goes with the Trace Lab.
+const TRACE_CHAT_ROOM = 'trace-forensics';
 
 /** The social layer (friends, presence, profile cards, DMs) wraps the whole signed-in app. */
 export default function App() {
@@ -51,6 +55,7 @@ function AppInner() {
   // Chain Security Lab room (runs in the browser, no server room needed)
   const [labOpen, setLabOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  const [traceOpen, setTraceOpen] = useState(false);
 
   // Profile & settings page, and the bits of the profile Home needs (the picture).
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -68,6 +73,7 @@ function AppInner() {
       setAdminOpen(false);
       setLabOpen(false);
       setAiOpen(false);
+      setTraceOpen(false);
       setGameCode(code);
       setPlayMode('room');
     });
@@ -107,6 +113,7 @@ function AppInner() {
     setAdminOpen(false);
     setLabOpen(false);
     setAiOpen(false);
+    setTraceOpen(false);
     setSettingsOpen(false);
     setAvatarVersion(0);
     setPlayMode('off');
@@ -183,6 +190,21 @@ function AppInner() {
       );
     }
 
+    if (traceOpen) {
+      return (
+        <>
+          <Ambient scene="trace-lab" />
+          <TraceLab
+            username={username}
+            token={token}
+            onLeave={() => setTraceOpen(false)}
+            onDiscuss={() => setSelectedRoom(TRACE_CHAT_ROOM)}
+            onAuthExpired={handleLogout}
+          />
+        </>
+      );
+    }
+
     if (labOpen) {
       return (
         <>
@@ -203,6 +225,7 @@ function AppInner() {
         engineStatus={engineStatus}
         onOpenLab={() => setLabOpen(true)}
         onOpenAILab={() => setAiOpen(true)}
+        onOpenTrace={() => setTraceOpen(true)}
         onPlayMap={(mapId, isPrivate) => (isPrivate ? createRoom(token, mapId, true) : quickPlay(token, mapId))}
         onJoinCode={(code) => {
           setGameCode(code);
@@ -227,7 +250,7 @@ function AppInner() {
             onClick={() => setSelectedRoom(null)}
             className="flex shrink-0 items-center gap-2 text-sm bg-white/5 hover:bg-white/10 px-3 py-2 rounded-xl transition-colors"
           >
-            <ArrowLeft size={16} /> {labOpen ? 'Back to the lab' : 'Back'}
+            <ArrowLeft size={16} /> {labOpen || traceOpen ? 'Back to the lab' : 'Back'}
           </button>
           <span className="font-semibold text-slate-200 capitalize truncate">{roomTitle}</span>
         </div>
