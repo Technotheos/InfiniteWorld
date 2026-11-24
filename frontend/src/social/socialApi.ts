@@ -65,6 +65,17 @@ export const followUser = (token: string, username: string) =>
 export const unfollowUser = (token: string, username: string) =>
   apiRequest<Relation>('/api/unfollow', token, form({ username }), 'Could not unfollow that player.');
 
+export type PeopleKind = 'followers' | 'following' | 'friends';
+
+/** The names behind a profile's counts. The server only answers for yourself and your friends. */
+export const getPeople = (token: string, name: string, list: PeopleKind) =>
+  apiRequest<{ users: string[] }>(
+    `/api/user/people?name=${encodeURIComponent(name)}&list=${list}`,
+    token,
+    { method: 'GET' },
+    'Could not load that list.',
+  );
+
 export const getFriends = (token: string) =>
   apiRequest<{ friends: Friend[] }>('/api/me/friends', token, { method: 'GET' }, 'Could not load your friends.');
 
