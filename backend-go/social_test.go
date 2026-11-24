@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -103,5 +106,78 @@ func TestPresenceOnlyForFriendsAndHideWorks(t *testing.T) {
 	h.rooms["pr_bob"] = RoomRef{Code: "SECRET", Map: "arena", Name: "Quick Arena", Public: false}
 	if v := h.View("pr_bob"); v.Room == nil || v.Room.Code != "" || v.Room.Public {
 		t.Fatalf("a private room's code must never be shown: %+v", v)
+	}
+}
+
+func TestFollowersAndFollowingLists(t *testing.T) {
+	addTestUsers("fl_ann", "fl_bob", "fl_cat")
+	ctx := context.Background()
+	ss := memorySocial
+	_ = ss.Follow(ctx, "fl_bob", "fl_ann")
+	_ = ss.Follow(ctx, "fl_cat", "fl_ann")
+	_ = ss.Follow(ctx, "fl_ann", "fl_bob")
+
+	if got, _ := ss.Followers(ctx, "fl_ann"); len(got) != 2 || got[0] != "fl_bob" || got[1] != "fl_cat" {
+		t.Fatalf("followers should be sorted and complete: %v", got)
+	}
+	if got, _ := ss.Following(ctx, "fl_ann"); len(got) != 1 || got[0] != "fl_bob" {
+		t.Fatalf("following should list who ann follows: %v", got)
+	}
+	if got, _ := ss.Following(ctx, "fl_nobody"); got == nil || len(got) != 0 {
+		t.Fatalf("an empty list must be an empty slice, not nil: %v", got)
+	}
+}
+
+func TestPeopleListsAreFriendsOnly(t *testing.T) {
+	profileSetup(t)
+	ctx := context.Background()
+	_, ann := userWithPassword(t, "pl_ann", "correct horse battery")
+	_, bob := userWithPassword(t, "pl_bob", "correct horse battery")
+	_, cat := userWithPassword(t, "pl_cat", "correct horse battery")
+	// ann and bob are friends; cat only follows ann.
+	_ = memorySocial.Follow(ctx, "pl_ann", "pl_bob")
+	_ = memorySocial.Follow(ctx, "pl_bob", "pl_ann")
+	_ = memorySocial.Follow(ctx, "pl_cat", "pl_ann")
+
+	get := func(tok, name, list string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(http.MethodGet, "/api/user/people?name="+name+"&list="+list, nil)
+		if tok != "" {
+			r.Header.Set("Authorization", "Bearer "+tok)
+		}
+		return do(PeopleHandler, r)
+	}
+	names := func(w *httptest.ResponseRecorder) []string {
+		var out struct {
+			Users []string `json:"users"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+			t.Fatalf("bad json: %v", err)
+		}
+		return out.Users
+	}
+
+	if w := get("", "pl_ann", "followers"); w.Code != http.StatusUnauthorized {
+		t.Fatalf("lists need a login, got %d", w.Code)
+	}
+	if w := get(ann, "pl_ann", "followers"); w.Code != http.StatusOK || len(names(w)) != 2 {
+		t.Fatalf("you can see your own followers: %d %s", w.Code, w.Body.String())
+	}
+	if w := get(bob, "pl_ann", "followers"); w.Code != http.StatusOK || len(names(w)) != 2 {
+		t.Fatalf("a friend can see the list: %d %s", w.Code, w.Body.String())
+	}
+	if w := get(bob, "pl_ann", "friends"); w.Code != http.StatusOK || len(names(w)) != 1 {
+		t.Fatalf("a friend can see the friends list: %d %s", w.Code, w.Body.String())
+	}
+	if w := get(cat, "pl_ann", "followers"); w.Code != http.StatusForbidden {
+		t.Fatalf("a one-way follower is not a friend, got %d", w.Code)
+	}
+	if w := get(cat, "pl_ghost", "following"); w.Code != http.StatusForbidden {
+		t.Fatalf("an unknown player must look the same as a private list, got %d", w.Code)
+	}
+	if w := get(ann, "pl_ann", "everyone"); w.Code != http.StatusBadRequest {
+		t.Fatalf("unknown list kind should be refused, got %d", w.Code)
+	}
+	if w := get(ann, "bad!name", "followers"); w.Code != http.StatusBadRequest {
+		t.Fatalf("bad names should be refused, got %d", w.Code)
 	}
 }
