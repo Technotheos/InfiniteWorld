@@ -1,20 +1,16 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Logo } from '../components/Logo';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { ArrowLeft, Camera, Check, LogOut } from 'lucide-react';
+import { ArrowLeft, Check, LogOut } from 'lucide-react';
 import '../styles/celestial.css';
 import { Starfield } from '../components/Starfield';
-import { Sigil } from '../components/Sigil';
-import { Avatar } from '../components/Avatar';
-import { AvatarCropper } from '../components/AvatarCropper';
 import { isNetworkError } from '../components/authApi';
+import { BTN_GHOST, BTN_GOLD, Expand, FOCUS, FieldError, INPUT } from '../components/formKit';
 import {
-  AuthExpiredError, MAX_BIO, MIN_PASSWORD, USERNAME_RE, avatarUrl, changePassword, changeUsername,
-  getMe, listSessions, logoutEverywhere, removeAvatar, revokeSession, saveBio, uploadAvatar,
+  AuthExpiredError, MIN_PASSWORD, changePassword, getMe, listSessions, logoutEverywhere, revokeSession,
   type Profile, type SessionInfo,
 } from '../components/profileApi';
 import { usePrefs, type Prefs } from '../hooks/usePrefs';
-import { loadProgress, rankFor, totalXp } from '../game/chain-lab';
 import { Ambient, sfx, useSoundPrefs } from '../sound';
 import { getPrivacy, savePrivacy, type Policy, type Privacy } from '../social/socialApi';
 
@@ -31,18 +27,7 @@ interface SettingsProps {
   onSessionChange: (token: string, username: string, expiresIn: number) => void;
   /** Open the admin console (only offered to staff). */
   onOpenAdmin?: () => void;
-  /** Keeps the rest of the app (Home sidebar) in sync with edits made here. */
-  onProfileChange: (patch: { bio?: string; avatarVersion?: number }) => void;
 }
-
-const FOCUS =
-  'outline-none focus-visible:ring-2 focus-visible:ring-[#e9b872] focus-visible:ring-offset-2 focus-visible:ring-offset-[#06050b]';
-const INPUT =
-  'w-full rounded-xl border border-white/10 bg-black/30 px-4 py-2.5 text-sm text-[#eee9dc] placeholder:text-[#6f6a7c] transition-colors focus:border-[#e9b872]/60 focus:outline-none focus-visible:ring-1 focus-visible:ring-[#e9b872]/50';
-const BTN_GHOST = `rounded-xl border border-white/10 px-4 py-2 text-sm text-[#c9c4d2] transition hover:bg-white/5 hover:text-[#eee9dc] disabled:opacity-50 ${FOCUS}`;
-const BTN_GOLD = `rounded-xl bg-[#e9b872] px-5 py-2 text-sm font-bold text-[#1a1208] transition hover:brightness-110 disabled:opacity-50 disabled:hover:brightness-100 ${FOCUS}`;
-
-const MAX_PICK_BYTES = 15 * 1024 * 1024;
 
 /* -------------------------------------------------------------------------- */
 /*  Small pieces                                                              */
@@ -94,23 +79,29 @@ function VolumeSlider({ value, label, onChange, onCommit }: { value: number; lab
   );
 }
 
-const POLICY_LABEL: Record<Policy, string> = { everyone: 'Everyone', friends: 'Friends only', nobody: 'Nobody' };
+const POLICY_LABEL: Record<Policy, string> = { everyone: 'Everyone', friends: 'Friends', nobody: 'Nobody' };
 
+/** Three pill buttons instead of a native dropdown, so the choices match the rest of the page. */
 function PolicySelect({ value, label, onChange }: { value: Policy; label: string; onChange: (v: Policy) => void }) {
   return (
-    <select
-      aria-label={label}
-      value={value}
-      onChange={(e) => onChange(e.target.value as Policy)}
-      style={{ colorScheme: 'dark' }}
-      className={`rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-[#eee9dc] ${FOCUS}`}
-    >
-      {(Object.keys(POLICY_LABEL) as Policy[]).map((p) => (
-        <option key={p} value={p}>
-          {POLICY_LABEL[p]}
-        </option>
-      ))}
-    </select>
+    <div role="group" aria-label={label} className="inline-flex rounded-xl border border-white/10 bg-black/30 p-1">
+      {(Object.keys(POLICY_LABEL) as Policy[]).map((p) => {
+        const on = value === p;
+        return (
+          <button
+            key={p}
+            type="button"
+            aria-pressed={on}
+            onClick={() => !on && onChange(p)}
+            className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors ${
+              on ? 'bg-[#e9b872] text-[#1a1208]' : 'text-[#c9c4d2] hover:bg-white/5 hover:text-[#eee9dc]'
+            } ${FOCUS}`}
+          >
+            {POLICY_LABEL[p]}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -132,35 +123,6 @@ function Switch({ on, onChange, label }: { on: boolean; onChange: (v: boolean) =
         }`}
       />
     </button>
-  );
-}
-
-/** Height-animated panel for the inline edit forms. */
-function Expand({ open, children }: { open: boolean; children: ReactNode }) {
-  const reduce = useReducedMotion();
-  return (
-    <AnimatePresence initial={false}>
-      {open && (
-        <motion.div
-          initial={reduce ? false : { height: 0, opacity: 0 }}
-          animate={{ height: 'auto', opacity: 1 }}
-          exit={reduce ? { opacity: 0 } : { height: 0, opacity: 0 }}
-          transition={{ duration: reduce ? 0 : 0.25 }}
-          className="overflow-hidden"
-        >
-          {children}
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-}
-
-function FieldError({ children }: { children?: ReactNode }) {
-  if (!children) return null;
-  return (
-    <p role="alert" className="text-xs text-[#ff5d4a]">
-      {children}
-    </p>
   );
 }
 
@@ -192,29 +154,16 @@ const PREF_ROWS: { key: keyof Prefs; label: string; hint: string }[] = [
 /*  Settings                                                                  */
 /* -------------------------------------------------------------------------- */
 
-export default function Settings({ token, username, onBack, onLogout, onSessionChange, onOpenAdmin, onProfileChange }: SettingsProps) {
+export default function Settings({ token, username, onBack, onLogout, onSessionChange, onOpenAdmin }: SettingsProps) {
   const reduce = useReducedMotion();
   const [prefs, setPref] = usePrefs();
   const [sound, setSound] = useSoundPrefs();
   const [me, setMe] = useState<Profile | null>(null);
   const [loadError, setLoadError] = useState('');
+  const panelRef = useRef<HTMLElement | null>(null);
 
   const [privacy, setPrivacy] = useState<Privacy | null>(null);
   const [privacyError, setPrivacyError] = useState('');
-
-  const [bio, setBio] = useState('');
-  const [savingBio, setSavingBio] = useState(false);
-
-  const fileRef = useRef<HTMLInputElement | null>(null);
-  const [cropFile, setCropFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [photoError, setPhotoError] = useState('');
-
-  const [nameOpen, setNameOpen] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [namePw, setNamePw] = useState('');
-  const [nameError, setNameError] = useState('');
-  const [savingName, setSavingName] = useState(false);
 
   const [pwOpen, setPwOpen] = useState(false);
   const [curPw, setCurPw] = useState('');
@@ -238,9 +187,6 @@ export default function Settings({ token, username, onBack, onLogout, onSessionC
   }, []);
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
 
-  const xp = totalXp(loadProgress());
-  const rank = rankFor(xp);
-
   /** Turns a failed request into a message, or logs out when the session is gone. */
   const explain = useCallback(
     (err: unknown, fallback: string): string => {
@@ -259,7 +205,6 @@ export default function Settings({ token, username, onBack, onLogout, onSessionC
       try {
         const p = await getMe(tok);
         setMe(p);
-        setBio(p.bio);
         setLoadError('');
       } catch (err) {
         setLoadError(explain(err, 'Could not load your profile.'));
@@ -273,6 +218,18 @@ export default function Settings({ token, username, onBack, onLogout, onSessionC
     // Load once on open; later changes update `me` directly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Escape goes back too (but not while typing in a field).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      const t = e.target as HTMLElement | null;
+      if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+      onBack();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onBack]);
 
   /* ---- privacy ---- */
 
@@ -294,117 +251,6 @@ export default function Settings({ token, username, onBack, onLogout, onSessionC
         setPrivacy(before);
         setPrivacyError(explain(err, 'Could not save your privacy settings.'));
       });
-  };
-
-  /* ---- photo ---- */
-
-  const pickFile = (file: File | undefined) => {
-    setPhotoError('');
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      setPhotoError('Please choose an image file.');
-      return;
-    }
-    if (file.size > MAX_PICK_BYTES) {
-      setPhotoError('That image is over 15 MB. Please choose a smaller one.');
-      return;
-    }
-    setCropFile(file);
-  };
-
-  const savePhoto = async (jpeg: Blob) => {
-    setUploading(true);
-    try {
-      const { avatar_version } = await uploadAvatar(token, jpeg);
-      setMe((m) => (m ? { ...m, avatar_version } : m));
-      onProfileChange({ avatarVersion: avatar_version });
-      setCropFile(null);
-      say('Photo updated');
-    } catch (err) {
-      setCropFile(null);
-      setPhotoError(explain(err, 'Could not upload your picture.'));
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const dropPhoto = async () => {
-    setPhotoError('');
-    setUploading(true);
-    try {
-      await removeAvatar(token);
-      setMe((m) => (m ? { ...m, avatar_version: 0 } : m));
-      onProfileChange({ avatarVersion: 0 });
-      say('Photo removed');
-    } catch (err) {
-      setPhotoError(explain(err, 'Could not remove your picture.'));
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  /* ---- bio ---- */
-
-  const bioDirty = me !== null && bio.trim() !== me.bio;
-  const submitBio = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!bioDirty || savingBio) return;
-    setSavingBio(true);
-    try {
-      const res = await saveBio(token, bio.trim());
-      setMe((m) => (m ? { ...m, bio: res.bio } : m));
-      setBio(res.bio);
-      onProfileChange({ bio: res.bio });
-      say('Bio saved');
-    } catch (err) {
-      say(explain(err, 'Could not save your bio.'));
-    } finally {
-      setSavingBio(false);
-    }
-  };
-
-  /* ---- username ---- */
-
-  const cooldownUntil = me?.username_change_available_at ? new Date(me.username_change_available_at) : null;
-  const onCooldown = cooldownUntil !== null && cooldownUntil.getTime() > Date.now();
-  const nameFormatBad = newName.length > 0 && !USERNAME_RE.test(newName);
-
-  const closeName = () => {
-    setNameOpen(false);
-    setNewName('');
-    setNamePw('');
-    setNameError('');
-  };
-
-  const submitName = async (e: FormEvent) => {
-    e.preventDefault();
-    if (savingName) return;
-    const next = newName.trim().toLowerCase();
-    if (!USERNAME_RE.test(next)) {
-      setNameError("Use 3–32 characters: a–z, 0–9, '_', '.' or '-'.");
-      return;
-    }
-    if (next === username) {
-      setNameError('That is already your username.');
-      return;
-    }
-    if (!namePw) {
-      setNameError('Enter your password to confirm.');
-      return;
-    }
-    setSavingName(true);
-    setNameError('');
-    try {
-      const res = await changeUsername(token, next, namePw);
-      onSessionChange(res.token, res.username, res.expires_in);
-      closeName();
-      await load(res.token);
-      say('Username updated');
-    } catch (err) {
-      setNameError(explain(err, 'Could not change your username.'));
-    } finally {
-      setSavingName(false);
-    }
   };
 
   /* ---- password ---- */
@@ -485,14 +331,17 @@ export default function Settings({ token, username, onBack, onLogout, onSessionC
 
   /* ---- render ---- */
 
-  const src = me ? avatarUrl(username, me.avatar_version) : null;
-  const hasPhoto = Boolean(src);
-  const memberSince = me ? new Date(me.created_at).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : '';
   const rise = (i: number) =>
     reduce ? {} : { initial: { opacity: 0, y: 14 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.45, delay: i * 0.07 } };
 
   return (
-    <div className={`iw-root relative min-h-screen overflow-hidden ${prefs.ambient ? '' : 'iw-calm'}`}>
+    <div
+      className={`iw-root relative min-h-screen overflow-hidden ${prefs.ambient ? '' : 'iw-calm'}`}
+      // Tapping the empty space around the settings panel goes back, like the Back button.
+      onMouseDown={(e) => {
+        if (panelRef.current && !panelRef.current.contains(e.target as Node)) onBack();
+      }}
+    >
       {prefs.starfield && <Starfield />}
       <div
         className="iw-anim pointer-events-none absolute left-[-10%] top-[-10%] z-0 h-[520px] w-[520px] rounded-full bg-[#2a1750]/30 blur-[150px]"
@@ -503,65 +352,18 @@ export default function Settings({ token, username, onBack, onLogout, onSessionC
         style={{ animation: 'iw-drift 32s ease-in-out infinite reverse' }}
       />
 
-      <main className="relative z-10 mx-auto max-w-2xl space-y-10 px-5 py-8 sm:px-8">
+      <main ref={panelRef} className="relative z-10 mx-auto max-w-2xl space-y-10 px-5 py-8 sm:px-8">
         <button
           type="button"
           onClick={onBack}
           className={`flex items-center gap-2 rounded-xl border border-white/10 bg-black/30 px-3.5 py-2 text-sm text-[#c9c4d2] backdrop-blur-md transition hover:bg-white/5 hover:text-[#eee9dc] ${FOCUS}`}
         >
-          <ArrowLeft size={16} /> Home
+          <ArrowLeft size={16} /> Back
         </button>
 
-        {/* Identity */}
-        <motion.header {...rise(0)} className="flex flex-col items-center gap-5 text-center sm:flex-row sm:text-left">
-          <div className="relative">
-            <Sigil size={132}>
-              <Avatar name={username} src={src} size={92} />
-            </Sigil>
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              disabled={uploading || !me}
-              aria-label={hasPhoto ? 'Change profile picture' : 'Add a profile picture'}
-              className={`absolute bottom-1 right-1 grid h-9 w-9 place-items-center rounded-full border border-[#e9b872]/50 bg-[#0d0b16] text-[#e9b872] transition hover:bg-[#e9b872] hover:text-[#1a1208] disabled:opacity-50 ${FOCUS}`}
-            >
-              <Camera size={16} />
-            </button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                pickFile(e.target.files?.[0]);
-                e.target.value = ''; // lets the same file be picked again
-              }}
-            />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs text-[#a49fb0]">
-              {rank.title} · {xp} XP{memberSince ? ` · Member since ${memberSince}` : ''}
-            </p>
-            <h2 className="iw-display truncate text-5xl font-light capitalize leading-tight">{username}</h2>
-            <div className="mt-2 flex items-center justify-center gap-3 sm:justify-start">
-              <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading || !me} className={BTN_GHOST}>
-                {hasPhoto ? 'Change photo' : 'Add photo'}
-              </button>
-              {hasPhoto && (
-                <button
-                  type="button"
-                  onClick={() => void dropPhoto()}
-                  disabled={uploading}
-                  className={`rounded-lg px-2 py-1 text-sm text-[#a49fb0] transition hover:text-[#ff5d4a] disabled:opacity-50 ${FOCUS}`}
-                >
-                  Remove
-                </button>
-              )}
-            </div>
-            <div className="mt-2 min-h-[1rem]">
-              <FieldError>{photoError}</FieldError>
-            </div>
-          </div>
+        <motion.header {...rise(0)}>
+          <h2 className="iw-display text-5xl font-light leading-tight">Settings</h2>
+          <p className="mt-1 text-sm text-[#a49fb0]">Signed in as @{username}</p>
         </motion.header>
 
         {loadError && (
@@ -572,91 +374,6 @@ export default function Settings({ token, username, onBack, onLogout, onSessionC
             </button>
           </div>
         )}
-
-        {/* Profile */}
-        <motion.div {...rise(1)}>
-          <Section title="Profile" hint="What other explorers see next to your name.">
-            <form onSubmit={submitBio}>
-              <Row label="Bio" stack>
-                <textarea
-                  value={bio}
-                  onChange={(e) => setBio(e.target.value)}
-                  rows={3}
-                  maxLength={MAX_BIO}
-                  disabled={!me}
-                  placeholder="A line or two about you…"
-                  aria-label="Bio"
-                  className={`${INPUT} resize-none leading-relaxed`}
-                />
-                <div className="flex items-center justify-between">
-                  <span className={`text-xs tabular-nums ${bio.length >= MAX_BIO ? 'text-[#e9b872]' : 'text-[#a49fb0]'}`}>
-                    {bio.length} / {MAX_BIO}
-                  </span>
-                  <button type="submit" disabled={!bioDirty || savingBio} className={BTN_GOLD}>
-                    {savingBio ? 'Saving…' : 'Save bio'}
-                  </button>
-                </div>
-              </Row>
-            </form>
-
-            <div>
-              <Row
-                label="Username"
-                hint={onCooldown && cooldownUntil ? `You can change it again on ${cooldownUntil.toLocaleString()}.` : 'You can change it once every 24 hours.'}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="max-w-[10rem] truncate text-sm text-[#c9c4d2]">@{username}</span>
-                  <button
-                    type="button"
-                    onClick={() => (nameOpen ? closeName() : setNameOpen(true))}
-                    disabled={!nameOpen && (onCooldown || !me)}
-                    aria-expanded={nameOpen}
-                    className={BTN_GHOST}
-                  >
-                    {nameOpen ? 'Cancel' : 'Change'}
-                  </button>
-                </div>
-              </Row>
-              <Expand open={nameOpen}>
-                <form onSubmit={submitName} className="space-y-3 px-5 pb-5 sm:px-6">
-                  <div className="relative">
-                    <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm text-[#a49fb0]">@</span>
-                    <input
-                      value={newName}
-                      onChange={(e) => setNewName(e.target.value.toLowerCase())}
-                      placeholder="new-username"
-                      aria-label="New username"
-                      autoComplete="off"
-                      autoCapitalize="none"
-                      spellCheck={false}
-                      maxLength={32}
-                      aria-invalid={nameFormatBad}
-                      className={`${INPUT} pl-8`}
-                    />
-                  </div>
-                  <input
-                    type="password"
-                    value={namePw}
-                    onChange={(e) => setNamePw(e.target.value)}
-                    placeholder="Current password"
-                    aria-label="Current password"
-                    autoComplete="current-password"
-                    className={INPUT}
-                  />
-                  <p className={`text-xs ${nameFormatBad ? 'text-[#ff9b8f]' : 'text-[#a49fb0]'}`}>
-                    3–32 characters: a–z, 0–9, “_”, “.” and “-”. You’ll stay signed in.
-                  </p>
-                  <FieldError>{nameError}</FieldError>
-                  <div className="flex justify-end">
-                    <button type="submit" disabled={savingName || !newName || !namePw} className={BTN_GOLD}>
-                      {savingName ? 'Saving…' : 'Update username'}
-                    </button>
-                  </div>
-                </form>
-              </Expand>
-            </div>
-          </Section>
-        </motion.div>
 
         {/* Appearance */}
         <motion.div {...rise(2)}>
@@ -695,10 +412,10 @@ export default function Settings({ token, username, onBack, onLogout, onSessionC
                 <Row label="Hide my presence" hint="Friends will see you as offline and will not see which room you are in.">
                   <Switch on={privacy.hide_presence} onChange={(v) => changePrivacy({ hide_presence: v })} label="Hide my presence" />
                 </Row>
-                <Row label="Who can message me" hint="Applies to new direct messages.">
+                <Row label="Who can message me" hint="Applies to new direct messages." stack>
                   <PolicySelect value={privacy.dm} label="Who can message me" onChange={(v) => changePrivacy({ dm: v })} />
                 </Row>
-                <Row label="Who can find me" hint="Whether you show up when someone searches by name.">
+                <Row label="Who can find me" hint="Whether you show up when someone searches by name." stack>
                   <PolicySelect value={privacy.find} label="Who can find me" onChange={(v) => changePrivacy({ find: v })} />
                 </Row>
               </>
@@ -844,10 +561,6 @@ export default function Settings({ token, username, onBack, onLogout, onSessionC
             <Logo size={22} /> Infinite World
         </div>
       </main>
-
-      {cropFile && (
-        <AvatarCropper file={cropFile} busy={uploading} onCancel={() => setCropFile(null)} onDone={(b) => void savePhoto(b)} />
-      )}
 
       <div aria-live="polite" role="status" className="pointer-events-none fixed inset-x-0 bottom-6 z-[70] flex justify-center px-4">
         <AnimatePresence>
