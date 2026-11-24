@@ -15,6 +15,7 @@ import (
 //	GET  /api/user?name=NAME        profile card + your relation to them
 //	POST /api/follow                username=NAME
 //	POST /api/unfollow              username=NAME
+//	GET  /api/user/people           name=NAME&list=followers|following|friends (friends only)
 //	GET  /api/me/friends            your friends and (honouring privacy) their presence
 //	GET  /api/me/privacy            hide_presence, dm, find
 //	POST /api/me/privacy            hide_presence=0|1&dm=everyone|friends|nobody&find=...
@@ -26,6 +27,7 @@ var (
 	UserCardHandler      = AuthMiddleware(userCardHandler)
 	FollowHandler        = AuthMiddleware(followHandler(true))
 	UnfollowHandler      = AuthMiddleware(followHandler(false))
+	PeopleHandler        = AuthMiddleware(peopleHandler)
 	FriendsHandler       = AuthMiddleware(friendsHandler)
 	PrivacyHandler       = AuthMiddleware(privacyHandler)
 	UserSearchHandler    = AuthMiddleware(userSearchHandler)
@@ -146,6 +148,61 @@ func followHandler(follow bool) http.HandlerFunc {
 			"i_follow": iFollow, "follows_me": followsMe, "is_friend": iFollow && followsMe,
 		})
 	}
+}
+
+// ---- followers / following / friends lists ------------------------------------------
+
+// peopleHandler serves the lists behind the numbers on a profile. The numbers are
+// public; the names are for friends only: you can open your own lists and those
+// of people who follow you back.
+func peopleHandler(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
+	me := UsernameFrom(r)
+	if !socialSearchLimiter.allow(me) {
+		writeError(w, http.StatusTooManyRequests, "Slow down a little")
+		return
+	}
+	name, ok := cleanName(r.URL.Query().Get("name"))
+	if !ok {
+		writeError(w, http.StatusBadRequest, "Invalid username")
+		return
+	}
+	kind := r.URL.Query().Get("list")
+	if kind != "followers" && kind != "following" && kind != "friends" {
+		writeError(w, http.StatusBadRequest, "Unknown list")
+		return
+	}
+	ss := socialStore()
+	if name != me {
+		iFollow, followsMe, err := ss.Relation(r.Context(), me, name)
+		if err != nil {
+			socialFail(w, "relation", err)
+			return
+		}
+		if !iFollow || !followsMe {
+			writeError(w, http.StatusForbidden, "Only friends can see this list")
+			return
+		}
+	}
+	var (
+		names []string
+		err   error
+	)
+	switch kind {
+	case "followers":
+		names, err = ss.Followers(r.Context(), name)
+	case "following":
+		names, err = ss.Following(r.Context(), name)
+	default:
+		names, err = ss.Friends(r.Context(), name)
+	}
+	if err != nil {
+		socialFail(w, "people", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"users": names})
 }
 
 // ---- friends ------------------------------------------------------------------------
