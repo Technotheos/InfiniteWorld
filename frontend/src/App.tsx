@@ -10,6 +10,7 @@ import { ArrowLeft, Send } from 'lucide-react';
 import { AILab } from './ai-lab';
 import { TraceLab } from './trace-lab';
 import Settings from './pages/Settings';
+import Profile from './pages/Profile';
 import Admin from './pages/Admin';
 import { Logo } from './components/Logo';
 import { UserAvatar } from './components/Avatar';
@@ -58,6 +59,7 @@ function AppInner() {
   const [traceOpen, setTraceOpen] = useState(false);
 
   // Profile & settings page, and the bits of the profile Home needs (the picture).
+  const [profileOpen, setProfileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
   const [avatarVersion, setAvatarVersion] = useState(0);
@@ -69,6 +71,7 @@ function AppInner() {
   useEffect(() => {
     setJoinHandler((code) => {
       setSelectedRoom(null);
+      setProfileOpen(false);
       setSettingsOpen(false);
       setAdminOpen(false);
       setLabOpen(false);
@@ -114,6 +117,7 @@ function AppInner() {
     setLabOpen(false);
     setAiOpen(false);
     setTraceOpen(false);
+    setProfileOpen(false);
     setSettingsOpen(false);
     setAvatarVersion(0);
     setPlayMode('off');
@@ -159,6 +163,7 @@ function AppInner() {
       return <Admin token={token} username={username} onBack={() => setAdminOpen(false)} onAuthExpired={handleLogout} />;
     }
     if (settingsOpen) {
+      // Back goes to wherever Settings was opened from: your profile, or Home.
       return (
         <Settings
           token={token}
@@ -167,9 +172,19 @@ function AppInner() {
           onLogout={handleLogout}
           onSessionChange={handleSessionChange}
           onOpenAdmin={() => setAdminOpen(true)}
-          onProfileChange={(patch) => {
-            if (patch.avatarVersion !== undefined) setAvatarVersion(patch.avatarVersion);
-          }}
+        />
+      );
+    }
+    if (profileOpen) {
+      return (
+        <Profile
+          token={token}
+          username={username}
+          onBack={() => setProfileOpen(false)}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onAuthExpired={handleLogout}
+          onSessionChange={handleSessionChange}
+          onAvatarChange={setAvatarVersion}
         />
       );
     }
@@ -232,6 +247,7 @@ function AppInner() {
           setPlayMode('room');
         }}
         onLogout={handleLogout}
+        onOpenProfile={() => setProfileOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
         avatarSrc={avatarUrl(username, avatarVersion)}
       />
