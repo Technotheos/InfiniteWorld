@@ -3,7 +3,8 @@ import { Flame, Loader2, MessageCircle, UserCheck, UserPlus, X } from 'lucide-re
 import { UserAvatar } from '../components/Avatar';
 import { getSession, getToken } from '../session';
 import { rankFor } from '../game/chain-lab/progress';
-import { followUser, getCard, unfollowUser, type UserCard } from './socialApi';
+import { followUser, getCard, unfollowUser, type PeopleKind, type UserCard } from './socialApi';
+import { PeopleList } from './PeopleList';
 import { useSocial } from './socialCore';
 import './social.css';
 
@@ -16,12 +17,30 @@ const BADGE_LABELS: Record<string, string> = {
 const BTN =
   'inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed outline-none focus-visible:ring-2 focus-visible:ring-[#e9b872]';
 
-function Stat({ n, label }: { n: number; label: string }) {
-  return (
-    <div className="flex-1 text-center">
+/** A count. With `onClick` it opens the list behind it; without, it is just a number. */
+function Stat({ n, label, onClick, hint }: { n: number; label: string; onClick?: () => void; hint?: string }) {
+  const body = (
+    <>
       <div className="text-lg font-semibold text-[#eee9dc]">{n}</div>
       <div className="text-[11px] uppercase tracking-wider text-[#a49fb0]">{label}</div>
-    </div>
+    </>
+  );
+  if (!onClick) {
+    return (
+      <div className="flex-1 py-3 text-center" title={hint}>
+        {body}
+      </div>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`${n} ${label}. Show the list`}
+      className="flex-1 py-3 text-center transition hover:bg-white/5 focus-visible:bg-white/5 focus-visible:outline-none"
+    >
+      {body}
+    </button>
   );
 }
 
@@ -31,6 +50,7 @@ export function ProfileCard({ name, onClose }: { name: string; onClose: () => vo
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
+  const [list, setList] = useState<PeopleKind | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(() => {
@@ -47,6 +67,7 @@ export function ProfileCard({ name, onClose }: { name: string; onClose: () => vo
   useEffect(() => {
     setCard(null);
     setNotice('');
+    setList(null);
     load();
   }, [load]);
 
@@ -78,6 +99,8 @@ export function ProfileCard({ name, onClose }: { name: string; onClose: () => vo
   const me = getSession()?.username;
   const rank = card ? rankFor(card.xp) : null;
   const presence = card?.is_friend ? (live ?? card.presence) : undefined;
+  const canSeeLists = Boolean(card && (card.you || card.is_friend));
+  const lockHint = 'Only friends can see this list';
 
   return (
     <div
@@ -154,11 +177,13 @@ export function ProfileCard({ name, onClose }: { name: string; onClose: () => vo
               </div>
             )}
 
-            <div className="mt-5 flex divide-x divide-white/10 rounded-2xl border border-white/10 bg-white/[0.03] py-3">
-              <Stat n={card.followers} label="Followers" />
-              <Stat n={card.following} label="Following" />
-              <Stat n={card.friends} label="Friends" />
+            {/* The counts are public; the names behind them are for friends (and for you). */}
+            <div className="mt-5 flex divide-x divide-white/10 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
+              <Stat n={card.followers} label="Followers" onClick={canSeeLists ? () => setList('followers') : undefined} hint={lockHint} />
+              <Stat n={card.following} label="Following" onClick={canSeeLists ? () => setList('following') : undefined} hint={lockHint} />
+              <Stat n={card.friends} label="Friends" onClick={canSeeLists ? () => setList('friends') : undefined} hint={lockHint} />
             </div>
+            {!canSeeLists && <p className="mt-2 text-center text-[11px] text-[#6f6a7c]">Only friends can see who is in these lists.</p>}
 
             {card.you || card.username === me ? (
               <p className="mt-5 text-center text-xs text-[#a49fb0]">This is you.</p>
@@ -208,6 +233,7 @@ export function ProfileCard({ name, onClose }: { name: string; onClose: () => vo
           </>
         )}
       </div>
+      {list && card && <PeopleList owner={card.username} kind={list} onClose={() => setList(null)} />}
     </div>
   );
 }
