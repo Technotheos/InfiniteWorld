@@ -36,6 +36,7 @@ interface HomeProps {
   onJoinCode: (code: string) => void;
   onLogout: () => void;
   /** Open the profile & settings page. */
+  onOpenProfile: () => void;
   onOpenSettings: () => void;
   /** The user's profile picture URL, if they have one. */
   avatarSrc?: string | null;
@@ -171,6 +172,7 @@ export default function Home({
   onPlayMap,
   onJoinCode,
   onLogout,
+  onOpenProfile,
   onOpenSettings,
   avatarSrc,
   engineStatus = 'connecting',
@@ -288,9 +290,9 @@ export default function Home({
           {isDesktop && <SlugToggles className="justify-center pb-1" />}
         <div className="pt-4 border-t border-white/10 flex items-center justify-between gap-1">
           <button
-            onClick={onOpenSettings}
-            title="Profile & settings"
-            aria-label="Open profile and settings"
+            onClick={onOpenProfile}
+            title="Your profile"
+            aria-label="Open your profile"
             className={`flex items-center gap-3 min-w-0 flex-1 p-1.5 -m-1.5 rounded-2xl text-left hover:bg-white/5 transition-colors ${FOCUS}`}
           >
             <Avatar name={displayName} src={avatarSrc} size={40} />
@@ -370,8 +372,8 @@ export default function Home({
                 </div>
               </div>
               <button
-                onClick={onOpenSettings}
-                aria-label="Profile and settings"
+                onClick={onOpenProfile}
+                aria-label="Your profile"
                 className={`md:hidden p-2.5 rounded-xl border border-white/10 text-[#a49fb0] hover:text-[#eee9dc] ${FOCUS}`}
               >
                 <SettingsIcon size={18} />
