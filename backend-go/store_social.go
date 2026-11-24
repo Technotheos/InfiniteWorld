@@ -30,6 +30,9 @@ const (
 	policyNobody   = "nobody"
 )
 
+// peopleListLimit caps the followers / following / friends lists.
+const peopleListLimit = 500
+
 func validPolicy(s string) bool {
 	return s == policyEveryone || s == policyFriends || s == policyNobody
 }
@@ -62,6 +65,10 @@ type SocialStore interface {
 	Relation(ctx context.Context, viewer, target string) (iFollow, followsMe bool, err error)
 	Card(ctx context.Context, username string) (UserCard, error)
 	Friends(ctx context.Context, username string) ([]string, error)
+	// Followers lists who follows username; Following lists whom username follows.
+	// Both are sorted by name and capped at peopleListLimit.
+	Followers(ctx context.Context, username string) ([]string, error)
+	Following(ctx context.Context, username string) ([]string, error)
 	GetPrivacy(ctx context.Context, username string) (Privacy, error)
 	SetPrivacy(ctx context.Context, username string, p Privacy) error
 	// Search finds users by name prefix, honouring each user's "who can find me".
@@ -189,6 +196,52 @@ func (s *pgStore) Friends(ctx context.Context, username string) ([]string, error
 	return out, rows.Err()
 }
 
+// collectNames reads a single-column result of usernames.
+func collectNames(rows pgx.Rows) ([]string, error) {
+	defer rows.Close()
+	out := []string{}
+	for rows.Next() {
+		var n string
+		if err := rows.Scan(&n); err != nil {
+			return nil, err
+		}
+		out = append(out, n)
+	}
+	return out, rows.Err()
+}
+
+func (s *pgStore) Followers(ctx context.Context, username string) ([]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
+	defer cancel()
+	rows, err := s.pool.Query(ctx,
+		`SELECT x.username
+		   FROM follows f
+		   JOIN users t ON t.id = f.followee_id
+		   JOIN users x ON x.id = f.follower_id
+		  WHERE t.username = $1 AND x.disabled_at IS NULL
+		  ORDER BY x.username LIMIT $2`, username, peopleListLimit)
+	if err != nil {
+		return nil, err
+	}
+	return collectNames(rows)
+}
+
+func (s *pgStore) Following(ctx context.Context, username string) ([]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
+	defer cancel()
+	rows, err := s.pool.Query(ctx,
+		`SELECT x.username
+		   FROM follows f
+		   JOIN users t ON t.id = f.follower_id
+		   JOIN users x ON x.id = f.followee_id
+		  WHERE t.username = $1 AND x.disabled_at IS NULL
+		  ORDER BY x.username LIMIT $2`, username, peopleListLimit)
+	if err != nil {
+		return nil, err
+	}
+	return collectNames(rows)
+}
+
 func (s *pgStore) GetPrivacy(ctx context.Context, username string) (Privacy, error) {
 	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()
@@ -314,6 +367,36 @@ func (m *memSocial) Friends(_ context.Context, username string) ([]string, error
 		}
 	}
 	sort.Strings(out)
+	return out, nil
+}
+
+func (m *memSocial) Followers(_ context.Context, username string) ([]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := []string{}
+	for from, set := range m.follows {
+		if set[username] {
+			out = append(out, from)
+		}
+	}
+	sort.Strings(out)
+	if len(out) > peopleListLimit {
+		out = out[:peopleListLimit]
+	}
+	return out, nil
+}
+
+func (m *memSocial) Following(_ context.Context, username string) ([]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := []string{}
+	for to := range m.follows[username] {
+		out = append(out, to)
+	}
+	sort.Strings(out)
+	if len(out) > peopleListLimit {
+		out = out[:peopleListLimit]
+	}
 	return out, nil
 }
 
