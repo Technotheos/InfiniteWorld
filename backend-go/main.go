@@ -65,6 +65,7 @@ func main() {
 	mux.HandleFunc("/api/me/password", PasswordHandler)
 	mux.HandleFunc("/api/avatar/", PublicAvatarHandler)
 	mux.HandleFunc("/api/user", UserCardHandler)
+	mux.HandleFunc("/api/user/people", PeopleHandler)
 	mux.HandleFunc("/api/follow", FollowHandler)
 	mux.HandleFunc("/api/unfollow", UnfollowHandler)
 	mux.HandleFunc("/api/me/friends", FriendsHandler)
