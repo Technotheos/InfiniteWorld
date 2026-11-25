@@ -75,6 +75,10 @@ func main() {
 	mux.HandleFunc("/ws/lobby", LobbyHandler)
 	mux.HandleFunc("/ws", manager.HandleWS)
 	hub.Register(mux)
+	studio := NewStudioHub() // Starship Studio (studio_*.go)
+	if err := studio.Register(mux); err != nil {
+		log.Fatalf("studio: %v", err)
+	}
 	addr := os.Getenv("ADDR")
 	if addr == "" {
 		addr = ":8080"
@@ -96,6 +100,7 @@ func main() {
 	defer stop()
 	go sessionJanitor(ctx)
 	go presenceHub.runCounts(ctx, hub)
+	go studio.run(ctx)
 
 	go func() {
 		certFile, keyFile := os.Getenv("TLS_CERT_FILE"), os.Getenv("TLS_KEY_FILE")
