@@ -29,6 +29,8 @@ function contentSecurityPolicy(apiUrl: string, wsUrl: string): Plugin {
     "font-src 'self' https://fonts.gstatic.com data:",
     `img-src 'self' data: blob: ${api}`.trim(), // avatars are served by the API
     `connect-src 'self' ${api} ${ws}`.trim(),
+    "media-src 'self' blob:", // the studio previews your own take before you transmit it
+
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'none'",
