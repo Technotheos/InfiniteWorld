@@ -22,6 +22,7 @@ import (
 //	presence  {name, online, room?}   a FRIEND of yours went on/offline or moved
 //	friends   (no payload)            your friend list changed: refetch it
 //	counts    {"<map id>": n, ...}    players per game map, every few seconds
+//	                                  ("studio" = producers on air in public Starship Studios)
 //	dm        {from, room_id}         someone opened a direct message to you
 //
 // Who sees what: only friends (mutual follows) ever receive someone's
@@ -340,7 +341,13 @@ func (h *PresenceHub) runCounts(ctx context.Context, hub *GameHub) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			data := envelopeBytes("counts", hub.liveCounts())
+			counts := hub.liveCounts()
+			if studioHubInst != nil { // "studio" = producers on air in public studios
+				for k, v := range studioHubInst.liveCounts() {
+					counts[k] += v
+				}
+			}
+			data := envelopeBytes("counts", counts)
 			if data == nil {
 				continue
 			}
