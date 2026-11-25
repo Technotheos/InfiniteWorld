@@ -99,6 +99,9 @@ interface Opts {
   state: StateView | null;
   send: (type: ClientMsgType, payload?: unknown) => void;
   onRtc?: (fn: (s: RtcSignal) => void) => () => void;
+  /** Server-issued ICE servers (ephemeral TURN credentials) and the relay-only privacy switch.
+   *  With relayOnly, peers only ever see the relay's address, never your own IP. */
+  ice?: { servers: RTCIceServer[]; relayOnly: boolean };
 }
 
 function waitIce(pc: RTCPeerConnection): Promise<void> {
@@ -140,7 +143,9 @@ function holder(): HTMLElement {
   return h;
 }
 
-export function useVoice({ state, send, onRtc }: Opts): VoiceApi {
+export function useVoice({ state, send, onRtc, ice }: Opts): VoiceApi {
+  const iceRef = useRef(ice);
+  iceRef.current = ice;
   const enabled = Boolean(state?.map.voice);
   const me = state?.you ?? "";
   const supported = enabled && typeof window !== "undefined" && typeof RTCPeerConnection !== "undefined";
@@ -242,7 +247,11 @@ export function useVoice({ state, send, onRtc }: Opts): VoiceApi {
   }, []);
 
   const makePeer = useCallback((name: string): Peer => {
-    const pc = new RTCPeerConnection({ iceServers: iceServers() });
+    const cfg = iceRef.current;
+    const pc = new RTCPeerConnection({
+      iceServers: cfg && cfg.servers.length ? cfg.servers : iceServers(),
+      iceTransportPolicy: cfg?.relayOnly ? "relay" : "all",
+    });
     const peer: Peer = { pc, since: Date.now() };
     peers.current.set(name, peer);
 
