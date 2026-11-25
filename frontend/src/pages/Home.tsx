@@ -2,11 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Logo } from '../components/Logo';
 import { motion, useReducedMotion, type MotionProps } from 'framer-motion';
 import {
-  ArrowUpRight, Brain, Fingerprint, Gamepad2, Home as HomeIcon, LogOut,
+  ArrowUpRight, Brain, Fingerprint, Gamepad2, Home as HomeIcon, LogOut, Music,
   Settings as SettingsIcon, ShieldAlert,
 } from 'lucide-react';
 import '../styles/celestial.css';
 import { Starfield, type StarfieldHandle } from '../components/Starfield';
+import { StudioDoorway } from '../studio/StudioDoorway';
 import { Sigil } from '../components/Sigil';
 import { Avatar } from '../components/Avatar';
 import { usePrefs } from '../hooks/usePrefs';
@@ -30,6 +31,8 @@ interface HomeProps {
   onOpenAILab: () => void;
   /** Open the Trace Lab (digital forensics). */
   onOpenTrace: () => void;
+  /** Open Starship Studio, optionally straight into a private session you were invited to. */
+  onOpenStudio: (code?: string) => void;
   /** Enter a game room straight from its card (quick play, or a new private room). */
   onPlayMap: (mapId: string, isPrivate: boolean) => Promise<string>;
   /** Join a game room by its code. */
@@ -169,6 +172,7 @@ export default function Home({
   onOpenLab,
   onOpenAILab,
   onOpenTrace,
+  onOpenStudio,
   onPlayMap,
   onJoinCode,
   onLogout,
@@ -278,6 +282,9 @@ export default function Home({
             </button>
             <button onClick={() => void enter(onOpenTrace)} disabled={warping} className={`${navBtn} text-[#a49fb0] hover:text-[#ff8a93] hover:bg-red-400/5`}>
               <Fingerprint size={18} /> Trace Lab
+            </button>
+            <button onClick={() => void enter(() => onOpenStudio())} disabled={warping} className={`${navBtn} text-[#a49fb0] hover:text-[#e9b872] hover:bg-[#e9b872]/5`}>
+              <Music size={18} /> Starship Studio
             </button>
             <button onClick={() => arcadeRef.current?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })} className={`${navBtn} text-[#a49fb0] hover:text-[#eee9dc] hover:bg-white/5`}>
               <Gamepad2 size={18} /> Arcade
@@ -510,6 +517,16 @@ export default function Home({
                 </div>
               </div>
             </div>
+          </motion.section>
+
+          {/* Starship Studio: the doorway (ring of light, live producers, friends orbiting) */}
+          <motion.section {...rise(3.8)} aria-label="Starship Studio">
+            <StudioDoorway
+              onEnter={(code) => void enter(() => onOpenStudio(code))}
+              disabled={warping}
+              animate={prefs.ambient && !reduce}
+              starfield={prefs.starfield}
+            />
           </motion.section>
 
           {/* Arcade: each portal enters its room directly */}
