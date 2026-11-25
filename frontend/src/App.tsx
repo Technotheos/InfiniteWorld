@@ -9,6 +9,7 @@ import { useEngineStatus } from './hooks/useEngineStatus';
 import { ArrowLeft, Send } from 'lucide-react';
 import { AILab } from './ai-lab';
 import { TraceLab } from './trace-lab';
+import { StudioLab } from './studio/StudioLab';
 import Settings from './pages/Settings';
 import Profile from './pages/Profile';
 import Admin from './pages/Admin';
@@ -57,6 +58,9 @@ function AppInner() {
   const [labOpen, setLabOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [traceOpen, setTraceOpen] = useState(false);
+  // Starship Studio (music + production). `studioCode` opens straight into an invited session.
+  const [studioOpen, setStudioOpen] = useState(false);
+  const [studioCode, setStudioCode] = useState<string | null>(null);
 
   // Profile & settings page, and the bits of the profile Home needs (the picture).
   const [profileOpen, setProfileOpen] = useState(false);
@@ -77,6 +81,7 @@ function AppInner() {
       setLabOpen(false);
       setAiOpen(false);
       setTraceOpen(false);
+      setStudioOpen(false);
       setGameCode(code);
       setPlayMode('room');
     });
@@ -117,6 +122,7 @@ function AppInner() {
     setLabOpen(false);
     setAiOpen(false);
     setTraceOpen(false);
+    setStudioOpen(false);
     setProfileOpen(false);
     setSettingsOpen(false);
     setAvatarVersion(0);
@@ -192,6 +198,11 @@ function AppInner() {
       return <GameRoom code={gameCode} token={token} onLeave={() => setPlayMode('off')} onAuthExpired={handleLogout} />;
     }
 
+    if (studioOpen) {
+      // No Ambient here: the studio is its own sound. Leaving it unmounts everything, including any recording.
+      return <StudioLab initialCode={studioCode} onExit={() => { setStudioOpen(false); setStudioCode(null); }} onAuthExpired={handleLogout} />;
+    }
+
     if (aiOpen) {
       return (
         <>
@@ -241,6 +252,7 @@ function AppInner() {
         onOpenLab={() => setLabOpen(true)}
         onOpenAILab={() => setAiOpen(true)}
         onOpenTrace={() => setTraceOpen(true)}
+        onOpenStudio={(code) => { setStudioCode(code ?? null); setStudioOpen(true); }}
         onPlayMap={(mapId, isPrivate) => (isPrivate ? createRoom(token, mapId, true) : quickPlay(token, mapId))}
         onJoinCode={(code) => {
           setGameCode(code);
