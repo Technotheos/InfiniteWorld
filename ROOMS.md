@@ -117,3 +117,48 @@ cd frontend   && npx vite-node src/game/dev/smoke.tsx       # renders all 14 scr
 
 Persist results in Postgres (`rooms`, `results`) · token refresh · report/mute/kick · more missions (trivia, word chain, drawing) ·
 voice via LiveKit · a 3D skin that reads the same `state`.
+
+# Starship Studio
+
+A music and production lab: a shared step sequencer, voice booth, take timeline and listening lounge.
+
+| Where | What |
+|---|---|
+| `frontend/src/studio/StudioDoorway.tsx` | The card on Home: waveform-to-pulsar ring, 90 BPM breathing, equalizer, tagline, "N producers on air", friend moons, sealed/open iris |
+| `frontend/src/studio/StudioLab.tsx` | Lobby: quick join, new public/private studio, code, invites |
+| `frontend/src/studio/Deck.tsx` | The room. `BeatBay`, `Booth`, `Mixer`, `Lounge` are its panels |
+| `frontend/src/studio/audio.ts` | Synth, beat-locked scheduler, take looper, generated house loops, recorder |
+| `backend-go/studio_room.go` | Server-authoritative room: sequencer, transport, roles, rec state, host controls, queue, publish consent |
+| `backend-go/studio_http.go` | Endpoints, WebSocket, upload, signed media, reports, takedown |
+| `backend-go/studio_audio.go` | Upload pipeline, storage, signing, retention |
+
+## How the shared clock works
+The server stores `(epoch, offset, bpm)`. Every client measures its offset to the server clock with ping/pong
+(smallest round trip wins) and computes the same beat. Lights read `--b`, one CSS variable set on each beat.
+Takes are snapped by the **server** to the beat on which the producer pressed Record.
+
+## Security map (your list, and where each item lives)
+**Uploads**: magic bytes (`sniffAudio`), size / duration / quota / rate caps, ffprobe codec + container check,
+ffmpeg re-encode to AAC/MP4 with `-map_metadata -1`, one audio stream, `-protocol_whitelist file`, empty environment,
+`ulimit` CPU / memory / file size, hard timeout and `unshare -rn` (no network) when the host allows it,
+random 128-bit IDs, `STUDIO_DATA_DIR` (0700), signed 60 s URLs bound to item + user, membership re-checked on every
+fetch, `nosniff` + `Content-Disposition: attachment`, ClamAV via `clamdscan`, 5-minute sweeper for expired / orphaned / temp files.
+**Rooms**: 45 s single-use room-scoped ticket as WebSocket subprotocol (never the login token), Origin check, socket
+expiry tied to the login (`reauth`), strict decoding (unknown fields rejected), 16 KB frames, per-type rate limits,
+role checks on every message, ephemeral TURN credentials (`/api/studio/ice`), relay-only switch, mic/cam only on a click,
+red indicator for everyone, host lock / kick / mute / invite-only / friends-only, React escapes all user text, CSP extended only with `media-src blob:`.
+**Content**: private by default, publish needs every contributor's yes (any can withdraw), copyright declaration required by the
+upload endpoint, report button, 3 distinct reports quarantine an item, moderator takedown, metadata-only logs, retention limit.
+
+## Running it
+Install `ffmpeg` (with `ffprobe`) and ideally `clamav-daemon`. See the Studio block in `.env.example`.
+Serve the frontend with `Permissions-Policy: microphone=(self), camera=(self)`.
+
+## Known limits (read these)
+* The backend Go files could not be compiled where they were written (no Go toolchain). Run `go vet ./... && go test ./...` first.
+* Rooms, takes and reports live in memory (like game rooms). A restart ends every room; leftover files are swept as orphans.
+* Host "mute" is enforced by the server (signalling is cut, recording refused) and by every client, but audio is peer-to-peer,
+  so a modified client can't be forced silent. Use Remove for that.
+* There is no global user-block feature in the codebase, so only room-level kick/ban and the existing friends relationship are honoured.
+* Recording latency of the microphone is not compensated; takes can sit a few tens of ms late.
+* Not browser-tested: please try two browsers on one machine first.
