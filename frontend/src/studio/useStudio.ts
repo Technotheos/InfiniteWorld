@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { refreshSession, subscribe } from '../session';
-import { defaultVel, StudioClock, SWING_MIN } from './audio';
+import { defaultVel, DEFAULT_BARS, EMPTY_MUSIC, StudioClock, SWING_MIN, type MusicState } from './audio';
+import type { Key, Note } from './theory';
 import { studioTicket, studioWsUrl, type StudioChatMsg, type StudioState, type StudioTake } from './studioApi';
 import type { RtcSignal } from '../game/types';
 
@@ -23,6 +24,21 @@ export interface PatternState {
   mute: boolean[];
   swing: number;
 }
+
+export const DEFAULT_KEY: Key = { root: 9, scale: 'minor', lock: true };
+
+/** The melodic half of a state snapshot. Older servers send none of it, so every field has a default. */
+const musicOf = (s: StudioState): MusicState => ({
+  notes: s.notes ?? [],
+  bars: s.bars ?? DEFAULT_BARS,
+  instr: s.instr ?? EMPTY_MUSIC.instr,
+  send: s.send ?? EMPTY_MUSIC.send,
+  nvol: s.nvol ?? EMPTY_MUSIC.nvol,
+  nmute: s.nmute ?? EMPTY_MUSIC.nmute,
+  filter: s.filter ?? EMPTY_MUSIC.filter,
+  dlyDiv: s.dly_div ?? EMPTY_MUSIC.dlyDiv,
+  dlyFB: s.dly_fb ?? EMPTY_MUSIC.dlyFB,
+});
 
 const TRACK_COUNT = 8;
 const STEP_COUNT = 16;
@@ -48,6 +64,8 @@ export function useStudio(code: string, onAuthExpired: () => void) {
   const [state, setState] = useState<StudioState | null>(null);
   const [cells, setCells] = useState<string[][]>([]);
   const [pattern, setPattern] = useState<PatternState>(emptyPattern);
+  const [music, setMusic] = useState<MusicState>(EMPTY_MUSIC);
+  const [key, setKey] = useState<Key>(DEFAULT_KEY);
   const [trail, setTrail] = useState<Record<string, { by: string; at: number }>>({});
   const [chat, setChat] = useState<StudioChatMsg[]>([]);
   const [lastTake, setLastTake] = useState<(StudioTake & { n: number }) | null>(null);
@@ -123,6 +141,8 @@ export function useStudio(code: string, onAuthExpired: () => void) {
               mute: st.mute ?? emptyPattern().mute,
               swing: st.swing ?? SWING_MIN,
             });
+            setMusic(musicOf(st));
+            setKey(st.key ?? DEFAULT_KEY);
             setChat(st.chat ?? []);
             break;
           }
@@ -159,6 +179,58 @@ export function useStudio(code: string, onAuthExpired: () => void) {
           case 'swing':
             setPattern((pt) => ({ ...pt, swing: (p as { v: number }).v }));
             break;
+          // ---- the piano roll: every producer's notes arrive live, stamped with who placed them ----
+          case 'note_add': {
+            const added = (p as { notes: Note[] }).notes ?? [];
+            setMusic((m) => {
+              const ids = new Set(added.map((n) => n.id));
+              return { ...m, notes: [...m.notes.filter((n) => !ids.has(n.id)), ...added] };
+            });
+            break;
+          }
+          case 'note_move': {
+            const e = p as { id: number; p: number; s: number };
+            setMusic((m) => ({ ...m, notes: m.notes.map((n) => (n.id === e.id ? { ...n, p: e.p, s: e.s } : n)) }));
+            break;
+          }
+          case 'note_resize': {
+            const e = p as { id: number; l: number };
+            setMusic((m) => ({ ...m, notes: m.notes.map((n) => (n.id === e.id ? { ...n, l: e.l } : n)) }));
+            break;
+          }
+          case 'note_vel': {
+            const e = p as { id: number; v: number };
+            setMusic((m) => ({ ...m, notes: m.notes.map((n) => (n.id === e.id ? { ...n, v: e.v } : n)) }));
+            break;
+          }
+          case 'note_del': {
+            const gone = new Set((p as { ids: number[] }).ids ?? []);
+            setMusic((m) => ({ ...m, notes: m.notes.filter((n) => !gone.has(n.id)) }));
+            break;
+          }
+          case 'key':
+            setKey({ root: (p as Key).root, scale: (p as Key).scale, lock: (p as Key).lock });
+            break;
+          case 'instr': {
+            const e = p as { t: number; id: string };
+            setMusic((m) => ({ ...m, instr: m.instr.map((x, t) => (t === e.t ? e.id : x)) }));
+            break;
+          }
+          case 'send': {
+            const e = p as { c: number; rev: number; dly: number };
+            setMusic((m) => ({ ...m, send: m.send.map((row, c) => (c === e.c ? [e.rev, e.dly] : row)) }));
+            break;
+          }
+          case 'nmix': {
+            const e = p as { t: number; vol: number; mute: boolean };
+            setMusic((m) => ({ ...m, nvol: m.nvol.map((v, t) => (t === e.t ? e.vol : v)), nmute: m.nmute.map((x, t) => (t === e.t ? e.mute : x)) }));
+            break;
+          }
+          case 'fx': {
+            const e = p as { filter: number; div: string; fb: number };
+            setMusic((m) => ({ ...m, filter: e.filter, dlyDiv: e.div, dlyFB: e.fb }));
+            break;
+          }
           case 'chat':
             setChat((c) => [...c.slice(-29), p as StudioChatMsg]);
             break;
@@ -235,5 +307,5 @@ export function useStudio(code: string, onAuthExpired: () => void) {
     return () => void rtcSubs.current.delete(fn);
   }, []);
 
-  return { status, state, cells, pattern, trail, chat, lastTake, error, closeReason, clock, send, onRtc };
+  return { status, state, cells, pattern, music, key, trail, chat, lastTake, error, closeReason, clock, send, onRtc };
 }
