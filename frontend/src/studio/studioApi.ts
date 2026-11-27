@@ -1,5 +1,6 @@
 import { API_URL, WS_URL } from '../components/authApi';
 import { getToken } from '../session';
+import type { Key, Note } from './theory';
 
 /* -------------------------------------------------------------------------- */
 /*  Wire types (match backend-go/studio_room.go)                              */
@@ -91,6 +92,21 @@ export interface StudioState {
   invited?: string[];
   tracks: number;
   steps: number;
+  /** pattern length in bars, 1..8. The drum grid repeats every bar under it. */
+  bars: number;
+  key: Key;
+  notes: Note[];
+  /** instrument id per melodic track (chords, melody, bass/808) */
+  instr: string[];
+  /** per channel (8 grid tracks, then the 3 melodic): [reverb send, delay send], 0..100 */
+  send: number[][];
+  nvol: number[];
+  nmute: boolean[];
+  /** master filter, 100 = wide open */
+  filter: number;
+  /** tempo-synced delay time: '1/4' | '1/8' | '1/8d' | '1/16' */
+  dly_div: string;
+  dly_fb: number;
 }
 
 export type StudioSend = (type: string, payload?: unknown) => void;
