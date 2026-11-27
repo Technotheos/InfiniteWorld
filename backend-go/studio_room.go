@@ -22,11 +22,14 @@ import (
 //
 //	client -> server  {"type": ..., "payload": {...}}   (payloads are decoded strictly:
 //	                                                     unknown fields are rejected)
-//	ping{t} step{t,s,on} bpm{bpm} transport{playing} clear{} rec{state}
+//	ping{t} step{t,s,on,v?} vel{t,s,v} kit{t,id} mix{t,vol?,mute?} swing{v}
+//	bpm{bpm} transport{playing} clear{} rec{state}
 //	voice{on,mic,cam} rtc{to,kind,sdp} chat{text} queue{op,src,id} take{op,id}
 //	consent{id,ok} publish{id} host{op,name,on,force}
+//	note_add note_move note_resize note_vel note_del note_clear key instr bars send nmix fx   (see studio_notes.go)
 //
-//	server -> client  hello state step take take_gone chat pong rtc error closing kicked
+//	server -> client  hello state step vel kit mix swing take take_gone chat pong rtc error closing kicked
+//	                  and the note_* / key / instr / send / nmix / fx broadcasts
 //
 // Roles: host (one), producer (edits the grid, records, queues tracks),
 // listener (hears everything, can chat and ask questions, changes nothing).
@@ -35,6 +38,9 @@ import (
 const (
 	studioTracks       = 8
 	studioSteps        = 16
+	studioMinSwing     = 50 // percent: 50 is straight 16ths, 66 is triplet feel, 75 is the most the grid allows
+	studioMaxSwing     = 75
+	studioDefaultVol   = 80  // per-track fader, 0..100
 	studioMaxMembers   = 12
 	studioMaxProducers = 8
 	studioMinBPM       = 60
@@ -53,6 +59,25 @@ const (
 	studioMemberGone   = 5 * time.Minute   // a disconnected non-recording member is forgotten
 	studioTick         = time.Second
 )
+
+// studioKitIDs is the allowlist of drum kits. The files live in the frontend's public/studio-kits/<id>/
+// (rendered by frontend/scripts/make-kits.py); the id is only ever used as a map key here, never as a path.
+var studioKitIDs = map[string]bool{"boombap": true, "trap": true, "house": true, "lofi": true}
+
+const studioDefaultKit = "boombap"
+
+// studioDrumTrack reports whether a track plays sampled drums (and so can have a kit).
+// Tracks 5 and 6 are the bass and lead synths.
+func studioDrumTrack(t int) bool { return t >= 0 && t < studioTracks && t != 5 && t != 6 }
+
+// studioDefaultVel is the velocity a pad gets when it is placed without one. Off-beat hats start
+// quieter, which keeps the dynamics the sequencer always had.
+func studioDefaultVel(t, s int) uint8 {
+	if t == 3 && s%4 != 0 {
+		return 72
+	}
+	return 100
+}
 
 const (
 	roleHost     = "host"
@@ -88,6 +113,7 @@ type studioMember struct {
 	bChat     *bucket
 	bMisc     *bucket
 	bVoice    *bucket
+	bNote     *bucket // chords and arpeggios: one message can carry up to studioMaxNoteBatch notes
 }
 
 type studioQueueItem struct {
@@ -130,6 +156,26 @@ type studioRoom struct {
 	nextColor   int
 
 	grid    [studioTracks][studioSteps]string
+	vel     [studioTracks][studioSteps]uint8 // 1..127 where a pad is on, else 0
+	kits    [studioTracks]string              // kit id per drum track, "" for the synth tracks
+	vol     [studioTracks]uint8               // fader 0..100
+	mute    [studioTracks]bool
+	swing   int                               // percent, studioMinSwing..studioMaxSwing
+
+	// Phase 2A: the melody core (see studio_notes.go)
+	notes    []studioNote
+	noteSeq  int
+	bars     int // pattern length, studioMinBars..studioMaxBars; the drum grid repeats every bar under it
+	keyRoot  int
+	keyScale string
+	keyLock  bool
+	instr    [studioMelodicTracks]string
+	send     [studioChannels][2]uint8 // reverb and delay send per channel (8 grid tracks, then 3 melodic), 0..100
+	nvol     [studioMelodicTracks]uint8
+	nmute    [studioMelodicTracks]bool
+	filter   uint8 // master filter sweep, 100 = wide open
+	dlyDiv   string
+	dlyFB    uint8
 	bpm     int
 	epoch   int64   // server unix ms the current tempo segment began
 	offset  float64 // beat position at epoch
@@ -157,17 +203,35 @@ func newStudioRoom(code string, hub *studioHub, host string, private bool) *stud
 		bpm: studioDefaultBPM, epoch: now.UnixMilli(), playing: true, emptySince: now,
 	}
 	r.quiet.Store(private)
+	r.swing = studioMinSwing
+	r.initMusic()
+	for t := 0; t < studioTracks; t++ {
+		r.vol[t] = studioDefaultVol
+		if studioDrumTrack(t) {
+			r.kits[t] = studioDefaultKit
+		}
+	}
 	// A starter groove so the first person in sees pads flare right away. It belongs to nobody.
 	for _, s := range []int{0, 4, 8, 12} {
-		r.grid[0][s] = "·"
+		r.setPad(0, s, "·", studioDefaultVel(0, s))
 	}
 	for _, s := range []int{4, 12} {
-		r.grid[1][s] = "·"
+		r.setPad(1, s, "·", studioDefaultVel(1, s))
 	}
 	for _, s := range []int{2, 6, 10, 14} {
-		r.grid[3][s] = "·"
+		r.setPad(3, s, "·", studioDefaultVel(3, s))
 	}
 	return r
+}
+
+// setPad puts a pad on (owner != "") or off, keeping the velocity grid in step with the owner grid.
+func (r *studioRoom) setPad(t, s int, owner string, vel uint8) {
+	r.grid[t][s] = owner
+	if owner == "" {
+		r.vel[t][s] = 0
+	} else {
+		r.vel[t][s] = vel
+	}
 }
 
 // ---- clock ------------------------------------------------------------------
@@ -231,6 +295,11 @@ type studioStateView struct {
 	Members     []studioMemberView `json:"members"`
 	Owners      []string           `json:"owners"`
 	Grid        [][]int            `json:"grid"` // -1 empty, 0 starter pad, n = owners[n-1]
+	Vel         [][]int            `json:"vel"`  // 0 where the pad is off, else 1..127
+	Kits        []string           `json:"kits"` // per track; "" for the synth tracks
+	Vol         []int              `json:"vol"`  // per track, 0..100
+	Mute        []bool             `json:"mute"`
+	Swing       int                `json:"swing"`
 	Queue       []studioQueueItem  `json:"queue"`
 	NowPlaying  *studioPlaying     `json:"now_playing,omitempty"`
 	Takes       []studioTakeView   `json:"takes"`
@@ -238,6 +307,17 @@ type studioStateView struct {
 	Invited     []string           `json:"invited,omitempty"` // host only
 	Tracks      int                `json:"tracks"`
 	Steps       int                `json:"steps"`
+
+	Bars   int          `json:"bars"`
+	Key    studioKey    `json:"key"`
+	Notes  []studioNote `json:"notes"`
+	Instr  []string     `json:"instr"`  // per melodic track
+	Send   [][]int      `json:"send"`   // per channel: [reverb, delay]
+	NVol   []int        `json:"nvol"`   // per melodic track
+	NMute  []bool       `json:"nmute"`
+	Filter int          `json:"filter"` // master filter, 100 = open
+	DlyDiv string       `json:"dly_div"`
+	DlyFB  int          `json:"dly_fb"`
 }
 
 func (r *studioRoom) heldByLocked() []string {
@@ -310,7 +390,17 @@ func (r *studioRoom) stateLocked(me string) studioStateView {
 			}
 		}
 		v.Grid = append(v.Grid, row)
+		vrow := make([]int, studioSteps)
+		for s := 0; s < studioSteps; s++ {
+			vrow[s] = int(r.vel[t][s])
+		}
+		v.Vel = append(v.Vel, vrow)
+		v.Kits = append(v.Kits, r.kits[t])
+		v.Vol = append(v.Vol, int(r.vol[t]))
+		v.Mute = append(v.Mute, r.mute[t])
 	}
+	v.Swing = r.swing
+	r.fillMusicLocked(&v)
 	if v.Owners == nil {
 		v.Owners = []string{}
 	}
@@ -443,7 +533,7 @@ func (r *studioRoom) join(c *studioClient, isFriendOfHost func() bool) error {
 			role = roleListener
 		}
 		m = &studioMember{name: c.name, role: role, color: r.nextColor % 8, rec: "idle", joinedAt: time.Now(),
-			bStep: newBucket(25, 40), bChat: newBucket(1, 3), bMisc: newBucket(6, 12), bVoice: newBucket(3, 6)}
+			bStep: newBucket(25, 40), bChat: newBucket(1, 3), bMisc: newBucket(6, 12), bVoice: newBucket(3, 6), bNote: newBucket(10, 24)}
 		r.nextColor++
 		r.members[c.name] = m
 		r.order = append(r.order, c.name)
@@ -553,26 +643,92 @@ func (r *studioRoom) handle(c *studioClient, msg ClientMsg) {
 			T  int  `json:"t"`
 			S  int  `json:"s"`
 			On bool `json:"on"`
+			V  *int `json:"v"` // optional velocity for a new pad
 		}
 		if !r.isProducer(m) || !m.bStep.allow() || !decodeStrict(p, &v) ||
-			v.T < 0 || v.T >= studioTracks || v.S < 0 || v.S >= studioSteps {
+			v.T < 0 || v.T >= studioTracks || v.S < 0 || v.S >= studioSteps ||
+			(v.V != nil && (*v.V < 1 || *v.V > 127)) {
 			return
 		}
 		by := ""
+		vel := uint8(0)
 		if v.On {
 			by = m.name
+			vel = studioDefaultVel(v.T, v.S)
+			if v.V != nil {
+				vel = uint8(*v.V)
+			}
 		}
-		if r.grid[v.T][v.S] == by && v.On {
-			return // already mine: nothing to say
+		if v.On && r.grid[v.T][v.S] == by && r.vel[v.T][v.S] == vel {
+			return // already exactly this: nothing to say
 		}
-		r.grid[v.T][v.S] = by
-		r.broadcastLocked("step", map[string]any{"t": v.T, "s": v.S, "on": v.On, "by": m.name, "at": nowMs})
+		r.setPad(v.T, v.S, by, vel)
+		r.broadcastLocked("step", map[string]any{"t": v.T, "s": v.S, "on": v.On, "v": vel, "by": m.name, "at": nowMs})
+
+	case "vel":
+		// Change how hard an existing pad hits without changing who placed it.
+		var v struct {
+			T int `json:"t"`
+			S int `json:"s"`
+			V int `json:"v"`
+		}
+		if !r.isProducer(m) || !m.bStep.allow() || !decodeStrict(p, &v) ||
+			v.T < 0 || v.T >= studioTracks || v.S < 0 || v.S >= studioSteps || v.V < 1 || v.V > 127 ||
+			r.grid[v.T][v.S] == "" || int(r.vel[v.T][v.S]) == v.V {
+			return
+		}
+		r.vel[v.T][v.S] = uint8(v.V)
+		r.broadcastLocked("vel", map[string]any{"t": v.T, "s": v.S, "v": v.V, "by": m.name})
+
+	case "note_add", "note_move", "note_resize", "note_vel", "note_del", "note_clear", "key", "instr", "bars", "send", "nmix", "fx":
+		r.musicLocked(m, msg.Type, p, nowMs)
+
+	case "kit":
+		var v struct {
+			T  int    `json:"t"`
+			ID string `json:"id"`
+		}
+		if !r.isProducer(m) || !m.bMisc.allow() || !decodeStrict(p, &v) || !studioDrumTrack(v.T) || !studioKitIDs[v.ID] || r.kits[v.T] == v.ID {
+			return
+		}
+		r.kits[v.T] = v.ID
+		r.broadcastLocked("kit", map[string]any{"t": v.T, "id": v.ID, "by": m.name})
+
+	case "mix":
+		var v struct {
+			T    int   `json:"t"`
+			Vol  *int  `json:"vol"`
+			Mute *bool `json:"mute"`
+		}
+		if !r.isProducer(m) || !m.bStep.allow() || !decodeStrict(p, &v) || v.T < 0 || v.T >= studioTracks ||
+			(v.Vol == nil && v.Mute == nil) || (v.Vol != nil && (*v.Vol < 0 || *v.Vol > 100)) {
+			return
+		}
+		if v.Vol != nil {
+			r.vol[v.T] = uint8(*v.Vol)
+		}
+		if v.Mute != nil {
+			r.mute[v.T] = *v.Mute
+		}
+		r.broadcastLocked("mix", map[string]any{"t": v.T, "vol": int(r.vol[v.T]), "mute": r.mute[v.T], "by": m.name})
+
+	case "swing":
+		var v struct {
+			V int `json:"v"`
+		}
+		if !r.isProducer(m) || !m.bStep.allow() || !decodeStrict(p, &v) || v.V < studioMinSwing || v.V > studioMaxSwing || v.V == r.swing {
+			return
+		}
+		r.swing = v.V
+		r.broadcastLocked("swing", map[string]any{"v": v.V, "by": m.name})
 
 	case "clear":
 		if m.role != roleHost || !m.bMisc.allow() {
 			return
 		}
 		r.grid = [studioTracks][studioSteps]string{}
+		r.vel = [studioTracks][studioSteps]uint8{}
+		r.notes = nil
 		r.syncLocked()
 
 	case "bpm":
@@ -716,6 +872,12 @@ func (r *studioRoom) handle(c *studioClient, msg ClientMsg) {
 					seen[o] = true
 					who = append(who, o)
 				}
+			}
+		}
+		for _, n := range r.notes {
+			if n.By != "" && !seen[n.By] {
+				seen[n.By] = true
+				who = append(who, n.By)
 			}
 		}
 		sort.Strings(who)

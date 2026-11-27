@@ -112,13 +112,35 @@
 
 /* Beat Bay */
 .sp-grid { display: flex; flex-direction: column; gap: 4px; overflow-x: auto; padding-bottom: .3rem; }
-.sp-row { display: flex; align-items: center; gap: .5rem; min-width: 34rem; }
-.sp-rowlabel { width: 4.6rem; flex: none; font: .7rem ui-monospace, monospace; color: #a49fb0; text-align: right; }
+.sp-row { display: flex; align-items: center; gap: .5rem; min-width: 46rem; transition: opacity .2s; }
+.sp-row.dim { opacity: .45; }
+.sp-row.muted .sp-pads { opacity: .45; }
+.sp-rowhead { width: 7.2rem; flex: none; display: flex; align-items: center; justify-content: flex-end; gap: .25rem; }
+.sp-rowlabel { flex: 1; font: .7rem ui-monospace, monospace; color: #a49fb0; text-align: right; white-space: nowrap; }
+.sp-ms { width: 1.35rem; height: 1.35rem; flex: none; padding: 0; border-radius: .3rem; cursor: pointer; font: 700 .62rem ui-monospace, monospace; color: #a49fb0; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14); }
+.sp-ms:disabled { cursor: default; opacity: .5; }
+.sp-ms.on { color: #1a0a04; background: #ff8a93; border-color: #ff8a93; }
+.sp-ms.solo.on { background: #e9b872; border-color: #e9b872; }
+.sp-ms:focus-visible, .sp-seg button:focus-visible, .sp-kit:focus-visible, .sp-fader:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.sp-rowmix { width: 9.6rem; flex: none; display: flex; align-items: center; gap: .35rem; }
+.sp-fader { width: 4.2rem; flex: none; accent-color: #e9b872; }
+.sp-kit { flex: 1; min-width: 0; padding: .15rem .25rem; border-radius: .35rem; font: .65rem ui-monospace, monospace; color: #c9c4d2; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14); }
+.sp-kit option { color: #111; }
+.sp-kit.synth { text-align: center; opacity: .6; border-style: dashed; }
+.sp-tools { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; margin: .2rem 0 .7rem; }
+.sp-seg { display: inline-flex; border: 1px solid rgba(255,255,255,.16); border-radius: .5rem; overflow: hidden; }
+.sp-seg button { cursor: pointer; padding: .28rem .65rem; font-size: .72rem; color: #c9c4d2; background: rgba(255,255,255,.04); border: 0; border-right: 1px solid rgba(255,255,255,.1); }
+.sp-seg button:last-child { border-right: 0; }
+.sp-seg button.on { color: #1a0a04; background: #e9b872; font-weight: 600; }
+.sp-swing input { width: 7rem; accent-color: #9b8cff; }
+.sp-kitwarn { color: #ffb36b; }
 .sp-pads { flex: 1; display: grid; grid-template-columns: repeat(16, 1fr); gap: 4px; }
 .sp-pad { position: relative; aspect-ratio: 1; min-height: 1.5rem; border-radius: .4rem; cursor: pointer; overflow: hidden; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); }
 .sp-pad.down { background: rgba(255,255,255,.09); }
 .sp-pad:disabled { cursor: default; }
-.sp-pad.on { background: color-mix(in srgb, var(--c) 70%, #000); border-color: var(--c); box-shadow: 0 0 calc(4px + var(--b) * 10px) color-mix(in srgb, var(--c) 60%, transparent); }
+.sp-pad.on { background: color-mix(in srgb, var(--c) 30%, #000); border-color: var(--c); box-shadow: 0 0 calc(4px + var(--b) * 10px) color-mix(in srgb, var(--c) 60%, transparent); }
+.sp-pad.vedit { cursor: ns-resize; touch-action: none; }
+.sp-vel { position: absolute; left: 0; right: 0; bottom: 0; pointer-events: none; background: linear-gradient(0deg, var(--c), color-mix(in srgb, var(--c) 55%, #fff)); opacity: .9; }
 .sp-pad.hit { background: var(--c); box-shadow: 0 0 22px var(--c), 0 0 4px #fff inset; transform: scale(1.12); z-index: 1; }
 .sp-trail { position: absolute; inset: 0; border-radius: inherit; background: radial-gradient(circle, var(--c), transparent 70%); animation: sp-trail 2.6s ease-out forwards; pointer-events: none; }
 @keyframes sp-trail { from { opacity: .9; transform: scale(1.8); } to { opacity: 0; transform: scale(1); } }

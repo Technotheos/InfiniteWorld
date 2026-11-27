@@ -15,6 +15,47 @@ export const TRACKS = [
 
 export const LOOP_BEATS = 16; // the Mixer loops 4 bars
 
+/* ---- drum kits ------------------------------------------------------------- */
+
+/** Must match studioKitIDs in backend-go/studio_room.go. The files are rendered by scripts/make-kits.py. */
+export const KITS = [
+  { id: 'boombap', label: 'Boom Bap' },
+  { id: 'trap', label: '808 Trap' },
+  { id: 'house', label: 'Tight House' },
+  { id: 'lofi', label: 'Dusty Lo-Fi' },
+] as const;
+
+/** Which sample file each track plays. null = a live synth voice (bass, lead). Same order as TRACKS. */
+export const KIT_VOICE: readonly (string | null)[] = ['kick', 'snare', 'clap', 'hat', 'ohat', null, null, 'perc'];
+export const isDrumTrack = (t: number) => KIT_VOICE[t] != null;
+
+export const VEL_MIN = 1;
+export const VEL_MAX = 127;
+export const VEL_GHOST = 40;
+export const VEL_NORMAL = 100;
+export const VEL_ACCENT = 124;
+/** Swing as the server stores it: percent, 50 = straight 16ths, 66 = triplet feel. */
+export const SWING_MIN = 50;
+export const SWING_MAX = 75;
+
+/** The velocity a pad gets when placed without one. Mirrors studioDefaultVel on the server. */
+export const defaultVel = (track: number, step: number) => (track === 3 && step % 4 !== 0 ? 72 : VEL_NORMAL);
+
+/** Everything the sequencer needs from the room, in one object. */
+export interface EnginePattern {
+  on: boolean[][];
+  vel: number[][];
+  kits: string[];
+  vol: number[];
+  mute: boolean[];
+  swing: number;
+}
+
+/** MIDI-ish velocity (1..127) to gain. A curve, so a ghost note is really quiet and an accent really pops. */
+export const velAmp = (v: number) => Math.pow(Math.min(VEL_MAX, Math.max(VEL_MIN, v)) / VEL_MAX, 1.2);
+/** Fader (0..100) to gain. 80 is the default and sits at about 0.94. */
+export const faderGain = (v: number) => Math.pow(Math.min(100, Math.max(0, v)) / 100, 1.8) * 1.4;
+
 /* ---- shared clock --------------------------------------------------------- */
 
 export class StudioClock {
@@ -48,6 +89,7 @@ let master: GainNode;
 let comp: DynamicsCompressorNode;
 let analyser: AnalyserNode;
 let seqBus: GainNode;
+let trackGain: GainNode[] = [];
 let loungeBus: GainNode;
 let noise: AudioBuffer;
 
@@ -71,6 +113,11 @@ export function ensureAudio(): AudioContext {
     seqBus = ctx.createGain();
     loungeBus = ctx.createGain();
     loungeBus.gain.value = 0.7;
+    trackGain = TRACKS.map(() => {
+      const g = ctx!.createGain();
+      g.connect(seqBus);
+      return g;
+    });
     seqBus.connect(comp);
     loungeBus.connect(comp);
     comp.connect(master);
@@ -96,6 +143,57 @@ export function masterLevel(): number {
   let s = 0;
   for (let i = 0; i < a.length; i++) s = Math.max(s, Math.abs(a[i]! - 128));
   return s / 128;
+}
+
+/* ---- kit loader ------------------------------------------------------------- */
+
+export type KitStatus = 'idle' | 'loading' | 'ready' | 'failed';
+const kitBuffers = new Map<string, Map<string, AudioBuffer>>();
+const kitState = new Map<string, KitStatus>();
+const kitFailedAt = new Map<string, number>();
+const kitListeners = new Set<() => void>();
+const emitKits = () => kitListeners.forEach((f) => f());
+
+export const kitStatus = (id: string): KitStatus => kitState.get(id) ?? 'idle';
+export function onKitChange(fn: () => void): () => void {
+  kitListeners.add(fn);
+  return () => void kitListeners.delete(fn);
+}
+
+/**
+ * Fetches and decodes one kit (every voice in parallel). A voice that fails to load simply falls back to
+ * the built-in synth for that voice, so a missing file never makes a track silent. A failed kit is retried
+ * after 15 s. Needs the audio context, so it is a no-op until the person has boarded (a click).
+ */
+export async function loadKit(id: string): Promise<void> {
+  const c = ctx;
+  if (!c || !KITS.some((k) => k.id === id)) return; // ids come from the server: only ever load a known one
+  const st = kitState.get(id);
+  if (st === 'loading' || st === 'ready') return;
+  if (st === 'failed' && Date.now() - (kitFailedAt.get(id) ?? 0) < 15000) return;
+  kitState.set(id, 'loading');
+  emitKits();
+  const names = [...new Set(KIT_VOICE.filter((v): v is string => v != null))];
+  const got = new Map<string, AudioBuffer>();
+  await Promise.all(
+    names.map(async (n) => {
+      try {
+        const res = await fetch(`${import.meta.env.BASE_URL}studio-kits/${id}/${n}.wav`);
+        if (!res.ok) return;
+        got.set(n, await decode(await res.arrayBuffer()));
+      } catch {
+        /* this voice falls back to the synth */
+      }
+    }),
+  );
+  if (got.size) {
+    kitBuffers.set(id, got);
+    kitState.set(id, 'ready');
+  } else {
+    kitState.set(id, 'failed');
+    kitFailedAt.set(id, Date.now());
+  }
+  emitKits();
 }
 
 /* ---- synth voices (work on a live or an offline context) ------------------- */
@@ -178,16 +276,20 @@ export function voice(c: BaseAudioContext, nb: NoiseSrc, dest: Dest, track: numb
 export interface Engine {
   start: () => void;
   stop: () => void;
-  setGrid: (g: boolean[][]) => void;
+  setPattern: (p: EnginePattern) => void;
+  /** Solo is a monitoring choice: it changes only what THIS listener hears. */
+  setSolo: (s: ReadonlySet<number>) => void;
   setTakeBuffer: (id: string, b: AudioBuffer) => void;
   dropTake: (id: string) => void;
   setTakeMuted: (id: string, m: boolean) => void;
   setTakes: (t: { id: string; start_beat: number; kind: string }[]) => void;
-  preview: (track: number, step: number) => void;
+  preview: (track: number, step: number, vel?: number) => void;
 }
 
 export function createEngine(clock: StudioClock): Engine {
-  let grid: boolean[][] = [];
+  let pat: EnginePattern = { on: [], vel: [], kits: [], vol: [], mute: [], swing: SWING_MIN };
+  let solo: ReadonlySet<number> = new Set();
+  let lastOpen: { g: GainNode; src: AudioBufferSourceNode } | null = null; // a closed hat chokes it
   let timer: number | undefined;
   let cursorBeat = 0; // beats up to here have been scheduled
   let seenVersion = -1;
@@ -195,6 +297,50 @@ export function createEngine(clock: StudioClock): Engine {
   const muted = new Set<string>();
   let takes: { id: string; start_beat: number; kind: string }[] = [];
   const LOOK = 0.15;
+
+  /** Fader, mute and solo for every track. Smoothed, so moving a fader never clicks. */
+  const applyMix = () => {
+    if (!ctx) return;
+    const anySolo = solo.size > 0;
+    trackGain.forEach((g, t) => {
+      const audible = anySolo ? solo.has(t) : !pat.mute[t];
+      g.gain.setTargetAtTime(audible ? faderGain(pat.vol[t] ?? 80) : 0, ctx!.currentTime, 0.015);
+    });
+  };
+
+  /** One hit on one track: the kit's sample if it is loaded, otherwise the synth voice. */
+  const hit = (track: number, step: number, t: number, vel: number) => {
+    if (!ctx) return;
+    const c = ctx;
+    const amp = velAmp(vel);
+    const dest = trackGain[track] ?? seqBus;
+    const name = KIT_VOICE[track];
+    const buf = name ? kitBuffers.get(pat.kits[track] ?? '')?.get(name) : undefined;
+    if (!buf) {
+      voice(c, noise, dest, track, step, t, amp);
+      return;
+    }
+    if (track === 3 && lastOpen) {
+      // a closed hat shuts the open one, like a real hi-hat pedal
+      lastOpen.g.gain.setTargetAtTime(0, t, 0.006);
+      try {
+        lastOpen.src.stop(t + 0.06);
+      } catch {
+        /* already ended */
+      }
+      lastOpen = null;
+    }
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    const g = c.createGain();
+    g.gain.value = amp;
+    src.connect(g).connect(dest);
+    src.start(t);
+    if (track === 4) lastOpen = { g, src };
+  };
+
+  /** How late an off-beat 16th lands, in beats. Swing 50 = 0, 66 = triplet feel, 75 = dotted. */
+  const swingDelay = (step: number) => (step % 2 === 1 ? (pat.swing / 100 - 0.5) * 0.5 : 0);
 
   const tick = () => {
     if (!ctx || ctx.state !== 'running') return;
@@ -213,9 +359,9 @@ export function createEngine(clock: StudioClock): Engine {
       const b = Math.max(cursorBeat + 0.0001, now);
       const stepBeat = Math.ceil(b * 4 - 1e-6) / 4;
       if (stepBeat >= endBeat) break;
-      const t = ctx.currentTime + Math.max(0, (stepBeat - now) * spb);
       const step = ((Math.round(stepBeat * 4) % 16) + 16) % 16;
-      for (let tr = 0; tr < grid.length; tr++) if (grid[tr]?.[step]) voice(ctx, noise, seqBus, tr, step, t, tr === 3 && step % 4 ? 0.7 : 1);
+      const t = ctx.currentTime + Math.max(0, (stepBeat + swingDelay(step) - now) * spb);
+      for (let tr = 0; tr < pat.on.length; tr++) if (pat.on[tr]?.[step]) hit(tr, step, t, pat.vel[tr]?.[step] || defaultVel(tr, step));
       // takes whose loop position falls on this beat boundary
       if (Number.isInteger(stepBeat)) {
         const pos = ((stepBeat % LOOP_BEATS) + LOOP_BEATS) % LOOP_BEATS;
@@ -237,14 +383,22 @@ export function createEngine(clock: StudioClock): Engine {
   return {
     start: () => {
       ensureAudio();
+      for (const k of new Set(pat.kits)) if (k) void loadKit(k);
+      applyMix();
       if (timer === undefined) timer = window.setInterval(tick, 25);
     },
     stop: () => {
       if (timer !== undefined) window.clearInterval(timer);
       timer = undefined;
     },
-    setGrid: (g) => {
-      grid = g;
+    setPattern: (p) => {
+      pat = p;
+      if (ctx) for (const k of new Set(p.kits)) if (k) void loadKit(k);
+      applyMix();
+    },
+    setSolo: (s) => {
+      solo = s;
+      applyMix();
     },
     setTakeBuffer: (id, b) => void buffers.set(id, b),
     dropTake: (id) => {
@@ -255,9 +409,10 @@ export function createEngine(clock: StudioClock): Engine {
     setTakes: (t) => {
       takes = t;
     },
-    preview: (track, step) => {
+    preview: (track, step, vel) => {
       const c = ensureAudio();
-      voice(c, noise, seqBus, track, step, c.currentTime + 0.005, 0.8);
+      applyMix();
+      hit(track, step, c.currentTime + 0.005, vel ?? defaultVel(track, step));
     },
   };
 }

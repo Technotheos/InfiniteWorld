@@ -3,7 +3,7 @@ import { loadPrefs } from '../hooks/usePrefs';
 import { Starfield } from '../components/Starfield';
 import { useVoice } from '../game/voice/useVoice';
 import type { StateView } from '../game/types';
-import { createEngine, decode, ensureAudio, peaks as computePeaks, startRecording, setMasterVolume, type Recording } from './audio';
+import { createEngine, decode, ensureAudio, kitStatus, onKitChange, peaks as computePeaks, startRecording, setMasterVolume, type Recording } from './audio';
 import { BeatBay } from './BeatBay';
 import { Booth } from './Booth';
 import { Lounge } from './Lounge';
@@ -27,7 +27,7 @@ interface Pending {
 const fmt = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
 
 export function Deck({ code, onLeave, onAuthExpired }: Props) {
-  const { status, state, cells, trail, chat, lastTake, error, closeReason, clock, send, onRtc } = useStudio(code, onAuthExpired);
+  const { status, state, cells, pattern, trail, chat, lastTake, error, closeReason, clock, send, onRtc } = useStudio(code, onAuthExpired);
   const prefs = useMemo(loadPrefs, []);
   const animate = prefs.ambient && !prefersReducedMotion();
   const root = useRef<HTMLDivElement>(null);
@@ -40,6 +40,8 @@ export function Deck({ code, onLeave, onAuthExpired }: Props) {
   const [relayOnly, setRelayOnly] = useState(false);
   const [peaks, setPeaks] = useState<Record<string, number[]>>({});
   const [muted, setMuted] = useState<Set<string>>(new Set());
+  const [solo, setSolo] = useState<ReadonlySet<number>>(new Set()); // yours alone: what you hear, not what the room has
+  const [, setKitTick] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
   const [pulse, setPulse] = useState(0);
   const loaded = useRef(new Set<string>());
@@ -56,8 +58,17 @@ export function Deck({ code, onLeave, onAuthExpired }: Props) {
     return () => engine.stop();
   }, [boarded, engine]);
   useEffect(() => {
-    engine.setGrid(cells.map((row) => row.map((c) => c !== '')));
-  }, [cells, engine]);
+    engine.setPattern({ on: cells.map((row) => row.map((c) => c !== '')), vel: pattern.vel, kits: pattern.kits, vol: pattern.vol, mute: pattern.mute, swing: pattern.swing });
+  }, [cells, pattern, engine]);
+  useEffect(() => engine.setSolo(solo), [solo, engine]);
+  useEffect(() => onKitChange(() => setKitTick((n) => n + 1)), []); // re-render when a kit finishes loading
+  const toggleSolo = useCallback((t: number) => {
+    setSolo((s) => {
+      const n = new Set(s);
+      n.has(t) ? n.delete(t) : n.add(t);
+      return n;
+    });
+  }, []);
   useEffect(() => {
     if (!state) return;
     engine.setTakes(state.takes);
@@ -253,7 +264,7 @@ export function Deck({ code, onLeave, onAuthExpired }: Props) {
 
       <main className="sp-deck">
         <div className="sp-col main">
-          <BeatBay cells={cells} trail={trail} members={state.members} step={step} canEdit={canEdit} send={send} onPreview={(t, s) => boarded && engine.preview(t, s)} />
+          <BeatBay cells={cells} pattern={pattern} trail={trail} members={state.members} step={step} canEdit={canEdit} send={send} solo={solo} onSolo={toggleSolo} kitStatus={kitStatus} onPreview={(t, s, v) => boarded && engine.preview(t, s, v)} />
 
           {canEdit && (
             <section className="sp-panel sp-rec" aria-label="Record a take">

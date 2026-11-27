@@ -161,3 +161,131 @@ func TestRoomRules(t *testing.T) {
 		t.Fatal("kicked user still a member")
 	}
 }
+
+func TestVelocityIsServerSide(t *testing.T) {
+	r, c := newTestRoom(t)
+	// a new pad gets the default velocity; hats off the beat start quieter
+	r.handle(c["prod"], msg("step", map[string]any{"t": 0, "s": 1, "on": true}))
+	if r.vel[0][1] != 100 {
+		t.Fatalf("default velocity: got %d", r.vel[0][1])
+	}
+	r.handle(c["prod"], msg("step", map[string]any{"t": 3, "s": 1, "on": true}))
+	if r.vel[3][1] != 72 {
+		t.Fatalf("off-beat hat default: got %d", r.vel[3][1])
+	}
+	// explicit velocity on placement, and out-of-range values are refused outright
+	r.handle(c["prod"], msg("step", map[string]any{"t": 1, "s": 2, "on": true, "v": 40}))
+	if r.vel[1][2] != 40 {
+		t.Fatalf("placed velocity: got %d", r.vel[1][2])
+	}
+	for _, bad := range []int{0, -5, 128, 9999} {
+		r.handle(c["prod"], msg("step", map[string]any{"t": 2, "s": 3, "on": true, "v": bad}))
+		if r.grid[2][3] != "" {
+			t.Fatalf("velocity %d must be rejected", bad)
+		}
+		r.handle(c["prod"], msg("vel", map[string]any{"t": 1, "s": 2, "v": bad}))
+		if r.vel[1][2] != 40 {
+			t.Fatalf("vel message with %d changed the pad", bad)
+		}
+	}
+	// vel edits a pad in place and does not change who placed it
+	r.handle(c["host"], msg("vel", map[string]any{"t": 1, "s": 2, "v": 127}))
+	if r.vel[1][2] != 127 || r.grid[1][2] != "prod" {
+		t.Fatalf("vel edit: vel=%d owner=%q", r.vel[1][2], r.grid[1][2])
+	}
+	// it cannot create a pad, and a listener cannot touch one
+	r.handle(c["prod"], msg("vel", map[string]any{"t": 5, "s": 5, "v": 90}))
+	if r.vel[5][5] != 0 || r.grid[5][5] != "" {
+		t.Fatal("vel must not switch a pad on")
+	}
+	r.handle(c["listen"], msg("vel", map[string]any{"t": 1, "s": 2, "v": 10}))
+	if r.vel[1][2] != 127 {
+		t.Fatal("a listener must not change velocity")
+	}
+	// switching a pad off clears its velocity; clear wipes all of them
+	r.handle(c["prod"], msg("step", map[string]any{"t": 1, "s": 2, "on": false}))
+	if r.vel[1][2] != 0 {
+		t.Fatal("pad off must zero its velocity")
+	}
+	r.handle(c["host"], msg("clear", nil))
+	for tr := range r.vel {
+		for s := range r.vel[tr] {
+			if r.vel[tr][s] != 0 || r.grid[tr][s] != "" {
+				t.Fatal("clear left a pad behind")
+			}
+		}
+	}
+	// the starter groove carries velocities too
+	fresh := newStudioRoom("T2", &studioHub{rooms: map[string]*studioRoom{}, nonces: map[string]time.Time{}}, "host", false)
+	if fresh.vel[0][0] != 100 || fresh.vel[3][2] != 72 || fresh.vel[3][0] != 0 {
+		t.Fatalf("starter velocities wrong: %d %d %d", fresh.vel[0][0], fresh.vel[3][2], fresh.vel[3][0])
+	}
+}
+
+func TestKitMixAndSwingRules(t *testing.T) {
+	r, c := newTestRoom(t)
+	if r.kits[0] != studioDefaultKit || r.kits[5] != "" || r.kits[6] != "" {
+		t.Fatalf("default kits wrong: %v", r.kits)
+	}
+	r.handle(c["prod"], msg("kit", map[string]any{"t": 0, "id": "trap"}))
+	if r.kits[0] != "trap" {
+		t.Fatal("producer kit change failed")
+	}
+	for _, bad := range []map[string]any{
+		{"t": 0, "id": "../../etc/passwd"}, // an id is a map key, never a path
+		{"t": 0, "id": "nope"},
+		{"t": 5, "id": "trap"}, // the bass is a synth: no kit
+		{"t": 99, "id": "trap"},
+	} {
+		r.handle(c["prod"], msg("kit", bad))
+	}
+	if r.kits[0] != "trap" || r.kits[5] != "" {
+		t.Fatalf("a bad kit message got through: %v", r.kits)
+	}
+	r.handle(c["listen"], msg("kit", map[string]any{"t": 1, "id": "house"}))
+	if r.kits[1] != studioDefaultKit {
+		t.Fatal("a listener must not change kits")
+	}
+
+	r.handle(c["prod"], msg("mix", map[string]any{"t": 2, "vol": 35, "mute": true}))
+	if r.vol[2] != 35 || !r.mute[2] {
+		t.Fatalf("mix not applied: vol=%d mute=%v", r.vol[2], r.mute[2])
+	}
+	r.handle(c["prod"], msg("mix", map[string]any{"t": 2, "mute": false})) // mute alone leaves the fader
+	if r.vol[2] != 35 || r.mute[2] {
+		t.Fatalf("partial mix wrong: vol=%d mute=%v", r.vol[2], r.mute[2])
+	}
+	for _, bad := range []map[string]any{{"t": 2, "vol": 101}, {"t": 2, "vol": -1}, {"t": 9, "vol": 5}, {"t": 2}} {
+		r.handle(c["prod"], msg("mix", bad))
+	}
+	if r.vol[2] != 35 {
+		t.Fatal("a bad mix message got through")
+	}
+	r.handle(c["listen"], msg("mix", map[string]any{"t": 2, "vol": 0}))
+	if r.vol[2] != 35 {
+		t.Fatal("a listener must not change the mix")
+	}
+
+	if r.swing != studioMinSwing {
+		t.Fatalf("default swing: %d", r.swing)
+	}
+	r.handle(c["prod"], msg("swing", map[string]any{"v": 66}))
+	if r.swing != 66 {
+		t.Fatal("swing not applied")
+	}
+	for _, bad := range []int{49, 76, -1, 1000} {
+		r.handle(c["prod"], msg("swing", map[string]any{"v": bad}))
+	}
+	r.handle(c["listen"], msg("swing", map[string]any{"v": 55}))
+	if r.swing != 66 {
+		t.Fatalf("swing rules broken: %d", r.swing)
+	}
+
+	// everything above reaches a newcomer in the state snapshot
+	r.mu.Lock()
+	st := r.stateLocked("prod")
+	r.mu.Unlock()
+	if st.Swing != 66 || st.Kits[0] != "trap" || st.Vol[2] != 35 || len(st.Vel) != studioTracks || len(st.Vel[0]) != studioSteps || len(st.Mute) != studioTracks {
+		t.Fatalf("state snapshot is missing the new fields: %+v", st)
+	}
+}

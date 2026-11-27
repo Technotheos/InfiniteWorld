@@ -75,6 +75,15 @@ export interface StudioState {
   owners: string[];
   /** -1 empty, 0 starter pad, n = owners[n-1] */
   grid: number[][];
+  /** 0 where the pad is off, else 1..127 */
+  vel: number[][];
+  /** kit id per track; '' for the synth tracks (bass, lead) */
+  kits: string[];
+  /** fader per track, 0..100 */
+  vol: number[];
+  mute: boolean[];
+  /** percent: 50 straight, 66 triplet feel */
+  swing: number;
   queue: QueueItem[];
   now_playing?: NowPlaying;
   takes: StudioTake[];

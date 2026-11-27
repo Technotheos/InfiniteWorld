@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { refreshSession, subscribe } from '../session';
-import { StudioClock } from './audio';
+import { defaultVel, StudioClock, SWING_MIN } from './audio';
 import { studioTicket, studioWsUrl, type StudioChatMsg, type StudioState, type StudioTake } from './studioApi';
 import type { RtcSignal } from '../game/types';
 
@@ -12,7 +12,27 @@ export interface StepEvent {
   on: boolean;
   by: string;
   at: number;
+  v?: number;
 }
+
+/** The parts of the pattern beyond on/off: how hard, which kit, the mix, the groove. */
+export interface PatternState {
+  vel: number[][];
+  kits: string[];
+  vol: number[];
+  mute: boolean[];
+  swing: number;
+}
+
+const TRACK_COUNT = 8;
+const STEP_COUNT = 16;
+const emptyPattern = (): PatternState => ({
+  vel: Array.from({ length: TRACK_COUNT }, () => Array<number>(STEP_COUNT).fill(0)),
+  kits: Array<string>(TRACK_COUNT).fill(''),
+  vol: Array<number>(TRACK_COUNT).fill(80),
+  mute: Array<boolean>(TRACK_COUNT).fill(false),
+  swing: SWING_MIN,
+});
 
 export interface ServerError {
   code: string;
@@ -27,6 +47,7 @@ export function useStudio(code: string, onAuthExpired: () => void) {
   const [status, setStatus] = useState<StudioStatus>('connecting');
   const [state, setState] = useState<StudioState | null>(null);
   const [cells, setCells] = useState<string[][]>([]);
+  const [pattern, setPattern] = useState<PatternState>(emptyPattern);
   const [trail, setTrail] = useState<Record<string, { by: string; at: number }>>({});
   const [chat, setChat] = useState<StudioChatMsg[]>([]);
   const [lastTake, setLastTake] = useState<(StudioTake & { n: number }) | null>(null);
@@ -95,6 +116,13 @@ export function useStudio(code: string, onAuthExpired: () => void) {
             clock.apply(st);
             setState(st);
             setCells(toCells(st));
+            setPattern({
+              vel: st.vel ?? emptyPattern().vel,
+              kits: st.kits ?? emptyPattern().kits,
+              vol: st.vol ?? emptyPattern().vol,
+              mute: st.mute ?? emptyPattern().mute,
+              swing: st.swing ?? SWING_MIN,
+            });
             setChat(st.chat ?? []);
             break;
           }
@@ -110,8 +138,27 @@ export function useStudio(code: string, onAuthExpired: () => void) {
             const e = p as StepEvent;
             setCells((c) => c.map((row, t) => (t === e.t ? row.map((v, s) => (s === e.s ? (e.on ? e.by : '') : v)) : row)));
             setTrail((tr) => ({ ...tr, [`${e.t}-${e.s}`]: { by: e.by, at: e.at } }));
+            setPattern((pt) => ({ ...pt, vel: pt.vel.map((row, t) => (t === e.t ? row.map((v, s) => (s === e.s ? (e.on ? e.v || defaultVel(e.t, e.s) : 0) : v)) : row)) }));
             break;
           }
+          case 'vel': {
+            const e = p as { t: number; s: number; v: number };
+            setPattern((pt) => ({ ...pt, vel: pt.vel.map((row, t) => (t === e.t ? row.map((v, s) => (s === e.s ? e.v : v)) : row)) }));
+            break;
+          }
+          case 'kit': {
+            const e = p as { t: number; id: string };
+            setPattern((pt) => ({ ...pt, kits: pt.kits.map((k, t) => (t === e.t ? e.id : k)) }));
+            break;
+          }
+          case 'mix': {
+            const e = p as { t: number; vol: number; mute: boolean };
+            setPattern((pt) => ({ ...pt, vol: pt.vol.map((v, t) => (t === e.t ? e.vol : v)), mute: pt.mute.map((m, t) => (t === e.t ? e.mute : m)) }));
+            break;
+          }
+          case 'swing':
+            setPattern((pt) => ({ ...pt, swing: (p as { v: number }).v }));
+            break;
           case 'chat':
             setChat((c) => [...c.slice(-29), p as StudioChatMsg]);
             break;
@@ -188,5 +235,5 @@ export function useStudio(code: string, onAuthExpired: () => void) {
     return () => void rtcSubs.current.delete(fn);
   }, []);
 
-  return { status, state, cells, trail, chat, lastTake, error, closeReason, clock, send, onRtc };
+  return { status, state, cells, pattern, trail, chat, lastTake, error, closeReason, clock, send, onRtc };
 }
