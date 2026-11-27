@@ -309,7 +309,7 @@ type studioStateView struct {
 	Steps       int                `json:"steps"`
 
 	Bars   int          `json:"bars"`
-	Key    studioKey    `json:"key"`
+	Key    studioRoomKey `json:"key"`
 	Notes  []studioNote `json:"notes"`
 	Instr  []string     `json:"instr"`  // per melodic track
 	Send   [][]int      `json:"send"`   // per channel: [reverb, delay]

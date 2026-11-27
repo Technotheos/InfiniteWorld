@@ -77,7 +77,7 @@ type studioNote struct {
 	By string `json:"by"`
 }
 
-type studioKey struct {
+type studioRoomKey struct {
 	Root  int    `json:"root"` // 0 = C .. 11 = B
 	Scale string `json:"scale"`
 	Lock  bool   `json:"lock"`
@@ -157,7 +157,7 @@ func (r *studioRoom) noteIndexLocked(id int) int {
 // fillMusicLocked adds the melodic parts to a state snapshot.
 func (r *studioRoom) fillMusicLocked(v *studioStateView) {
 	v.Bars = r.bars
-	v.Key = studioKey{Root: r.keyRoot, Scale: r.keyScale, Lock: r.keyLock}
+	v.Key = studioRoomKey{Root: r.keyRoot, Scale: r.keyScale, Lock: r.keyLock}
 	v.Notes = append([]studioNote{}, r.notes...)
 	v.Instr = append([]string{}, r.instr[:]...)
 	v.Send = make([][]int, studioChannels)
