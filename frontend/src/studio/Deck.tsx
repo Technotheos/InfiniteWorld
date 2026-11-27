@@ -5,6 +5,9 @@ import { useVoice } from '../game/voice/useVoice';
 import type { StateView } from '../game/types';
 import { createEngine, decode, ensureAudio, kitStatus, onKitChange, peaks as computePeaks, startRecording, setMasterVolume, type Recording } from './audio';
 import { BeatBay } from './BeatBay';
+import { onInstrumentChange } from './instruments';
+import { PianoRoll } from './PianoRoll';
+import { SpacePanel } from './SpacePanel';
 import { Booth } from './Booth';
 import { Lounge } from './Lounge';
 import { Mixer } from './Mixer';
@@ -27,7 +30,7 @@ interface Pending {
 const fmt = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
 
 export function Deck({ code, onLeave, onAuthExpired }: Props) {
-  const { status, state, cells, pattern, trail, chat, lastTake, error, closeReason, clock, send, onRtc } = useStudio(code, onAuthExpired);
+  const { status, state, cells, pattern, music, key: roomKey, trail, chat, lastTake, error, closeReason, clock, send, onRtc } = useStudio(code, onAuthExpired);
   const prefs = useMemo(loadPrefs, []);
   const animate = prefs.ambient && !prefersReducedMotion();
   const root = useRef<HTMLDivElement>(null);
@@ -60,7 +63,9 @@ export function Deck({ code, onLeave, onAuthExpired }: Props) {
   useEffect(() => {
     engine.setPattern({ on: cells.map((row) => row.map((c) => c !== '')), vel: pattern.vel, kits: pattern.kits, vol: pattern.vol, mute: pattern.mute, swing: pattern.swing });
   }, [cells, pattern, engine]);
+  useEffect(() => engine.setMusic(music), [music, engine]);
   useEffect(() => engine.setSolo(solo), [solo, engine]);
+  useEffect(() => onInstrumentChange(() => setKitTick((n) => n + 1)), []); // re-render when an instrument's samples finish loading
   useEffect(() => onKitChange(() => setKitTick((n) => n + 1)), []); // re-render when a kit finishes loading
   const toggleSolo = useCallback((t: number) => {
     setSolo((s) => {
@@ -266,6 +271,22 @@ export function Deck({ code, onLeave, onAuthExpired }: Props) {
         <div className="sp-col main">
           <BeatBay cells={cells} pattern={pattern} trail={trail} members={state.members} step={step} canEdit={canEdit} send={send} solo={solo} onSolo={toggleSolo} kitStatus={kitStatus} onPreview={(t, s, v) => boarded && engine.preview(t, s, v)} />
 
+          <PianoRoll
+            music={music}
+            roomKey={roomKey}
+            members={state.members}
+            you={state.you}
+            canEdit={canEdit}
+            isHost={isHost}
+            clock={clock}
+            send={send}
+            solo={solo}
+            onSolo={toggleSolo}
+            onPreview={(t, p, v) => boarded && engine.previewNote(t, p, v)}
+          />
+
+          <SpacePanel music={music} bpm={state.bpm} canEdit={canEdit} send={send} />
+
           {canEdit && (
             <section className="sp-panel sp-rec" aria-label="Record a take">
               <header className="sp-panel-h"><h2>Record</h2><span className="sp-sub">Only you can start your own recording.</span></header>
@@ -298,6 +319,7 @@ export function Deck({ code, onLeave, onAuthExpired }: Props) {
           )}
 
           <Mixer
+            bars={music.bars}
             takes={state.takes}
             members={state.members}
             you={state.you}
