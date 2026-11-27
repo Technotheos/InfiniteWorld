@@ -162,3 +162,26 @@ Serve the frontend with `Permissions-Policy: microphone=(self), camera=(self)`.
 * There is no global user-block feature in the codebase, so only room-level kick/ban and the existing friends relationship are honoured.
 * Recording latency of the microphone is not compensated; takes can sit a few tens of ms late.
 * Not browser-tested: please try two browsers on one machine first.
+
+
+# Studio Phase 2A: the melody core
+
+What changed, where, and how to check it.
+
+## Server (backend-go)
+- `studio_notes.go` (new): the note list, key and scale lock, instruments, sends, master filter, pattern length, and all validation.
+- `studio_room.go`: new room fields, state snapshot fields, message dispatch, `clear` also clears notes, publish consent counts note authors.
+- `studio_notes_test.go` (new): tests for every new message. Run `go test ./...` (not run here: no Go toolchain was available).
+- Messages: `note_add` (one note or a whole chord/arpeggio, all-or-nothing), `note_move`, `note_resize`, `note_vel`, `note_del`, `note_clear` (host), `key`, `instr`, `bars` (host), `send`, `nmix`, `fx`.
+- Limits: 256 notes per pattern, 32 per add, pitch 24..96, length and start inside the pattern, velocity 1..127, no two notes of the same pitch overlapping on a track, out-of-key notes refused while the lock is on. Producers only; same rate-limit buckets (plus one for chord adds).
+
+## Frontend (frontend/src/studio)
+- `theory.ts` (new): scales, key snapping, chord palette, inversions, strum/arpeggio, progression presets, bass-from-chords, delay times.
+- `instruments.ts` (new): the seven instruments (synth fallback + sample-pack loader), the gliding 808.
+- `audio.ts`: 11 channels, shared reverb + tempo-synced delay + master filter, note scheduling that follows the pattern length, `previewNote`.
+- `PianoRoll.tsx`, `ChordTools.tsx`, `SpacePanel.tsx` (new); `Deck.tsx`, `Mixer.tsx`, `useStudio.ts`, `studioApi.ts`, `studio.css` updated.
+- `frontend/public/studio-instruments/README.md` and `frontend/scripts/make-instrument-pack.py`: how to add sampled piano/guitar with a licence check.
+- Checks: `npm run test:theory` (no dependencies; Node 22.6+).
+
+## Not in this drop
+Phase 2B (save/load/export, undo/redo, arrangement, vocals) is untouched, and no sample packs are installed yet, so every instrument currently plays from the built-in synth.
