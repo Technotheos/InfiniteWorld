@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { LOOP_BEATS, type StudioClock } from './audio';
+import { loopBeatsFor, type StudioClock } from './audio';
 import { PRODUCER_COLORS, type StudioMember, type StudioSend, type StudioTake } from './studioApi';
 
 interface Props {
+  /** pattern length in bars: the timeline, the playhead and the take loop all follow it */
+  bars: number;
   takes: StudioTake[];
   members: StudioMember[];
   you: string;
@@ -17,7 +19,8 @@ interface Props {
 }
 
 /** Mixer Timeline: one lane per producer, each take a ribbon of light snapped to the beat. */
-export function Mixer({ takes, members, you, isHost, clock, peaks, muted, onMute, onReport, send, animate }: Props) {
+export function Mixer({ bars, takes, members, you, isHost, clock, peaks, muted, onMute, onReport, send, animate }: Props) {
+  const loopBeats = loopBeatsFor(bars);
   const head = useRef<HTMLDivElement>(null);
   const [fresh, setFresh] = useState<Record<string, true>>({});
   const seen = useRef(new Set<string>());
@@ -40,13 +43,13 @@ export function Mixer({ takes, members, you, isHost, clock, peaks, muted, onMute
   useEffect(() => {
     let raf = 0;
     const loop = () => {
-      const b = ((clock.beat() % LOOP_BEATS) + LOOP_BEATS) % LOOP_BEATS;
-      if (head.current) head.current.style.left = `${(b / LOOP_BEATS) * 100}%`;
+      const b = ((clock.beat() % loopBeats) + loopBeats) % loopBeats;
+      if (head.current) head.current.style.left = `${(b / loopBeats) * 100}%`;
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [clock]);
+  }, [clock, loopBeats]);
 
   const recordings = takes.filter((t) => t.kind === 'take');
   const lanes = members.filter((m) => recordings.some((t) => t.by === m.name) || m.role !== 'listener');
@@ -56,11 +59,11 @@ export function Mixer({ takes, members, you, isHost, clock, peaks, muted, onMute
     <section className="sp-panel sp-mixer" aria-label="Mixer Timeline">
       <header className="sp-panel-h">
         <h2>Mixer Timeline</h2>
-        <span className="sp-sub">4 bars, looping. Takes snap to the beat they were recorded on.</span>
+        <span className="sp-sub">{bars} bar{bars > 1 ? 's' : ''}, looping. Takes snap to the beat they were recorded on.</span>
       </header>
       <div className="sp-lanes">
-        <div className="sp-bars" aria-hidden="true">
-          {Array.from({ length: 4 }, (_, i) => (
+        <div className="sp-bars" aria-hidden="true" style={{ gridTemplateColumns: `repeat(${bars}, 1fr)` }}>
+          {Array.from({ length: bars }, (_, i) => (
             <span key={i}>{i + 1}</span>
           ))}
         </div>
@@ -71,14 +74,14 @@ export function Mixer({ takes, members, you, isHost, clock, peaks, muted, onMute
               {recordings
                 .filter((t) => t.by === l.name)
                 .map((t) => {
-                  const pos = ((t.start_beat % LOOP_BEATS) + LOOP_BEATS) % LOOP_BEATS;
-                  const len = Math.min(t.len_beats, LOOP_BEATS - pos);
+                  const pos = ((t.start_beat % loopBeats) + loopBeats) % loopBeats;
+                  const len = Math.min(t.len_beats, loopBeats - pos);
                   const pk = peaks[t.id];
                   return (
                     <div
                       key={t.id}
                       className={`sp-ribbon${fresh[t.id] && animate ? ' landing' : ''}${muted.has(t.id) ? ' off' : ''}`}
-                      style={{ left: `${(pos / LOOP_BEATS) * 100}%`, width: `${(len / LOOP_BEATS) * 100}%`, ['--pc' as string]: PRODUCER_COLORS[l.color % 8] }}
+                      style={{ left: `${(pos / loopBeats) * 100}%`, width: `${(len / loopBeats) * 100}%`, ['--pc' as string]: PRODUCER_COLORS[l.color % 8] }}
                     >
                       <svg viewBox="0 0 48 20" preserveAspectRatio="none" aria-hidden="true">
                         {(pk ?? Array(48).fill(0.15)).map((p, i) => (
